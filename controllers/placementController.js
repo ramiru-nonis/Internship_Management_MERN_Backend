@@ -16,7 +16,12 @@ const submitPlacementForm = async (req, res) => {
         const existingForm = await PlacementForm.findOne({ student: student._id });
 
         if (existingForm) {
-            return res.status(400).json({ message: 'Placement form already submitted' });
+            // If student is already hired/approved/intern, prevent resubmission
+            if (['hired', 'approved', 'intern'].includes(student.status)) {
+                return res.status(400).json({ message: 'Placement form already submitted' });
+            }
+            // If status is 'not hired' or 'non-intern', allow resubmission (delete old form)
+            await PlacementForm.findByIdAndDelete(existingForm._id);
         }
 
         const {
@@ -78,8 +83,8 @@ const submitPlacementForm = async (req, res) => {
 
         await placementForm.save();
 
-        // Update student status to 'approved'
-        student.status = 'approved';
+        // Update student status to 'hired'
+        student.status = 'hired';
         await student.save();
 
         res.status(201).json({
@@ -100,6 +105,11 @@ const getPlacementForm = async (req, res) => {
 
         if (!student) {
             return res.status(404).json({ message: 'Student profile not found' });
+        }
+
+        // If student status is 'not hired' or 'non-intern', pretend no form exists to allow resubmission
+        if (['not hired', 'non-intern'].includes(student.status)) {
+            return res.status(404).json({ message: 'No placement form found' });
         }
 
         const placementForm = await PlacementForm.findOne({ student: student._id });
