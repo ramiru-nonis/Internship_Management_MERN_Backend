@@ -78,8 +78,8 @@ const submitPlacementForm = async (req, res) => {
 
         await placementForm.save();
 
-        // Update student status to 'Hired'
-        student.status = 'Hired';
+        // Update student status to 'intern'
+        student.status = 'intern';
         await student.save();
 
         res.status(201).json({

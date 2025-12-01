@@ -35,16 +35,19 @@ const createApplication = async (req, res) => {
         const application = new Application({
             internship: internshipId,
             student: student._id,
+            apply_type: req.body.apply_type || (req.file ? 'custom_cv' : 'profile'),
             cv: req.file ? req.file.path : student.cv, // Use uploaded CV or default
         });
 
         await application.save();
 
-        // Update student status to 'Applied' if first application
+        // Status update removed as per new requirements (only 'intern'/'non-intern' tracked via placement)
+        /*
         if (student.status === 'Not Applied') {
             student.status = 'Applied';
             await student.save();
         }
+        */
 
         res.status(201).json(application);
     } catch (error) {
@@ -138,9 +141,67 @@ const getStudentApplications = async (req, res) => {
     }
 };
 
+// @desc    Download all CVs for a specific internship application
+// @route   POST /api/applications/download-cvs
+// @access  Private (Coordinator/Admin)
+const downloadJobCVs = async (req, res) => {
+    const AdmZip = require('adm-zip');
+    const axios = require('axios');
+    const { internshipId } = req.body;
+
+    try {
+        const applications = await Application.find({ internship: internshipId })
+            .populate('student');
+
+        if (!applications || applications.length === 0) {
+            return res.status(404).json({ message: 'No applications found for this internship' });
+        }
+
+        const zip = new AdmZip();
+        let count = 0;
+
+        for (const app of applications) {
+            // Use application-specific CV if available, otherwise student profile CV
+            const cvUrl = app.cv || (app.student && app.student.cv);
+
+            if (cvUrl) {
+                try {
+                    // Check if it's a Cloudinary URL (starts with http)
+                    if (cvUrl.startsWith('http')) {
+                        const response = await axios.get(cvUrl, { responseType: 'arraybuffer' });
+                        const studentName = app.student ? `${app.student.first_name}_${app.student.last_name}` : 'Unknown_Student';
+                        const filename = `${studentName}_CV.pdf`;
+                        zip.addFile(filename, Buffer.from(response.data));
+                        count++;
+                    }
+                } catch (err) {
+                    console.error(`Error downloading CV for application ${app._id}:`, err.message);
+                }
+            }
+        }
+
+        if (count === 0) {
+            return res.status(404).json({ message: 'No valid CV files found to download' });
+        }
+
+        const downloadName = `Internship_CVs_${Date.now()}.zip`;
+        const data = zip.toBuffer();
+
+        res.set('Content-Type', 'application/zip');
+        res.set('Content-Disposition', `attachment; filename=${downloadName}`);
+        res.set('Content-Length', data.length);
+        res.send(data);
+
+    } catch (error) {
+        console.error('Bulk download error:', error);
+        res.status(500).json({ message: 'Failed to generate zip file' });
+    }
+};
+
 module.exports = {
     createApplication,
     getApplicationDetails,
     updateApplicationStatus,
     getStudentApplications,
+    downloadJobCVs,
 };

@@ -48,8 +48,8 @@ const studentSchema = mongoose.Schema({
     }],
     status: {
         type: String,
-        enum: ['Not Applied', 'Applied', 'Hired', 'Completed'],
-        default: 'Not Applied',
+        enum: ['non-intern', 'intern', 'approved'],
+        default: 'non-intern',
     },
 }, {
     timestamps: true,
