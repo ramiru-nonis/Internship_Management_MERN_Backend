@@ -14,7 +14,11 @@ const app = express();
 
 // Middleware
 app.use(cors({
-    origin: process.env.FRONTEND_URL || '*',
+    origin: [
+        'http://localhost:3000',
+        'https://client-1zry3usc9-ramiru-nonis-projects.vercel.app',
+        process.env.FRONTEND_URL
+    ].filter(Boolean),
     credentials: true
 }));
 app.use(express.json());
