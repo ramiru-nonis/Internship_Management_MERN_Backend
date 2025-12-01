@@ -36,7 +36,8 @@ const updateProfile = async (req, res) => {
             degree,
             degree_level,
             availability,
-            preferences
+            preferences,
+            status
         } = req.body;
 
         // Update fields if provided
@@ -47,6 +48,24 @@ const updateProfile = async (req, res) => {
         if (degree_level) student.degree_level = degree_level;
         if (availability) student.availability = availability;
         if (preferences) student.preferences = Array.isArray(preferences) ? preferences : JSON.parse(preferences);
+
+        if (status && student.status !== status) {
+            student.status = status;
+
+            // Notify Coordinators
+            const { createNotification } = require('./notificationController');
+            const coordinators = await User.find({ role: 'coordinator' });
+
+            for (const coordinator of coordinators) {
+                await createNotification(
+                    coordinator._id,
+                    `Student ${student.first_name} ${student.last_name} has changed their status to: ${status}`,
+                    'info',
+                    student._id,
+                    'Student'
+                );
+            }
+        }
 
         const updatedStudent = await student.save();
         res.json(updatedStudent);

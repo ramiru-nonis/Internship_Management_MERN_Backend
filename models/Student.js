@@ -48,7 +48,7 @@ const studentSchema = mongoose.Schema({
     }],
     status: {
         type: String,
-        enum: ['non-intern', 'intern', 'approved'],
+        enum: ['non-intern', 'intern', 'approved', 'hired', 'not hired'],
         default: 'non-intern',
     },
 }, {

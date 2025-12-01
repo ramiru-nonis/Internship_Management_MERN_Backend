@@ -11,9 +11,9 @@ const { protect, coordinator } = require('../middleware/authMiddleware');
 const upload = require('../middleware/uploadMiddleware');
 
 router.post('/', protect, upload.single('cv'), createApplication);
-router.get('/:id', protect, getApplicationDetails);
-router.put('/:id/status', protect, coordinator, updateApplicationStatus);
-router.post('/download-cvs', protect, coordinator, downloadJobCVs);
 router.get('/student/:studentId', protect, getStudentApplications);
+router.post('/download-cvs', protect, coordinator, downloadJobCVs);
+router.put('/:id/status', protect, coordinator, updateApplicationStatus);
+router.get('/:id', protect, getApplicationDetails);
 
 module.exports = router;

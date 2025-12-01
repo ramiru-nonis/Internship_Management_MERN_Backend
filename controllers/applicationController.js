@@ -13,6 +13,11 @@ const createApplication = async (req, res) => {
             return res.status(404).json({ message: 'Student profile not found' });
         }
 
+        // Check if student is already hired/approved
+        if (['hired', 'approved', 'intern'].includes(student.status)) {
+            return res.status(400).json({ message: 'You are already hired/approved, so you cannot apply for this internship. Please change your status in settings if this is incorrect.' });
+        }
+
         const { internshipId } = req.body;
 
         const internship = await Internship.findById(internshipId);
@@ -31,23 +36,37 @@ const createApplication = async (req, res) => {
             return res.status(400).json({ message: 'You have already applied for this internship' });
         }
 
+        // Determine application type and CV source
+        let applyType = req.body.apply_type || (req.file ? 'custom_cv' : 'profile');
+
+        if (applyType === 'custom') {
+            applyType = 'custom_cv';
+        }
+
+        if (!['profile', 'custom_cv'].includes(applyType)) {
+            applyType = 'profile';
+        }
+
+        let cvPath = student.cv;
+
+        if (applyType === 'custom_cv') {
+            if (!req.file) {
+                return res.status(400).json({ message: 'Please upload a custom CV to apply with this option' });
+            }
+            cvPath = req.file.path;
+        } else if (req.file) {
+            cvPath = req.file.path;
+        }
+
         // Create application
         const application = new Application({
             internship: internshipId,
             student: student._id,
-            apply_type: req.body.apply_type || (req.file ? 'custom_cv' : 'profile'),
-            cv: req.file ? req.file.path : student.cv, // Use uploaded CV or default
+            apply_type: applyType,
+            cv: cvPath, // Use uploaded CV or default
         });
 
         await application.save();
-
-        // Status update removed as per new requirements (only 'intern'/'non-intern' tracked via placement)
-        /*
-        if (student.status === 'Not Applied') {
-            student.status = 'Applied';
-            await student.save();
-        }
-        */
 
         res.status(201).json(application);
     } catch (error) {
