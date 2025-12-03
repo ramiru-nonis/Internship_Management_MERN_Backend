@@ -59,7 +59,23 @@ const getInternshipById = async (req, res) => {
             return res.status(404).json({ message: 'Internship not found' });
         }
 
-        res.json(internship);
+        let hasApplied = false;
+
+        // Check if current user is a student and has applied
+        if (req.user && req.user.role === 'student') {
+            const student = await Student.findOne({ user: req.user._id });
+            if (student) {
+                const application = await Application.findOne({
+                    internship: internship._id,
+                    student: student._id
+                });
+                if (application) {
+                    hasApplied = true;
+                }
+            }
+        }
+
+        res.json({ ...internship.toObject(), hasApplied });
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
