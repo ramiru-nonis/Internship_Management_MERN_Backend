@@ -23,17 +23,7 @@ const placementFormSchema = mongoose.Schema({
         type: Date,
         required: true,
     },
-    supervisor_name: {
-        type: String,
-        required: true,
-    },
-    supervisor_email: {
-        type: String,
-        required: true,
-    },
-    supervisor_phone: {
-        type: String,
-    },
+
     description: {
         type: String,
         required: true,

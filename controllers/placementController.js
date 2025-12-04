@@ -43,9 +43,7 @@ const submitPlacementForm = async (req, res) => {
             placement_job_role,
             start_date,
             end_date,
-            supervisor_name,
-            supervisor_email,
-            supervisor_phone,
+
             mentor_name,
             mentor_email,
             mentor_phone,
@@ -72,9 +70,7 @@ const submitPlacementForm = async (req, res) => {
             placement_job_role,
             start_date,
             end_date,
-            supervisor_name,
-            supervisor_email,
-            supervisor_phone,
+
             mentor_name,
             mentor_email,
             mentor_phone,
