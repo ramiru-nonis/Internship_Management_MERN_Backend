@@ -44,7 +44,7 @@ const placementFormSchema = mongoose.Schema({
     student_id_number: { type: String, required: true },
     batch_code: { type: String, required: true },
     has_visa: { type: String, enum: ['yes', 'no'], required: true },
-    award_title: { type: String, required: true },
+    award_title: { type: Number, required: true },
     emergency_contact: { type: String, required: true },
     emergency_relationship: { type: String, required: true },
     company_address: { type: String, required: true },
