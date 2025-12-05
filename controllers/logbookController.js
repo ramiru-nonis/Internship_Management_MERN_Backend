@@ -1,8 +1,9 @@
 const Logbook = require('../models/Logbook');
 const User = require('../models/User');
 const Notification = require('../models/Notification');
+const sendEmail = require('../utils/sendEmail');
 
-// Get Logbook for a specific month (or create if fits schedule?)
+// Get Logbook for a specific month
 exports.getLogbook = async (req, res) => {
     try {
         const { studentId, month, year } = req.query;
@@ -57,16 +58,31 @@ exports.submitLogbook = async (req, res) => {
         const logbook = await Logbook.findById(logbookId);
         if (!logbook) return res.status(404).json({ message: 'Logbook not found' });
 
-        if (logbook.weeks.length < 4) {
-            // Logic regarding 4 weeks enforcement
-        }
-
         logbook.status = 'Pending';
         logbook.submittedDate = Date.now();
         logbook.mentorEmail = mentorEmail;
         await logbook.save();
 
-        console.log(`Sending email to ${mentorEmail} for Logbook ${logbook._id}`);
+        // Send Email to Mentor
+        try {
+            const message = `
+                Hello, 
+                
+                You have a new logbook submission (ID: ${logbook._id}) waiting for your approval.
+                Please review it at your earliest convenience.
+                
+                Thank you.
+            `;
+
+            await sendEmail({
+                email: mentorEmail,
+                subject: 'New Logbook Submission for Approval',
+                message
+            });
+            console.log(`Email sent to ${mentorEmail}`);
+        } catch (emailError) {
+            console.error('Email could not be sent', emailError);
+        }
 
         res.status(200).json({ message: 'Logbook submitted for approval', logbook });
     } catch (error) {
