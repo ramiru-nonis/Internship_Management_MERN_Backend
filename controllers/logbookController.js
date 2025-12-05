@@ -58,7 +58,10 @@ exports.saveLogbookEntry = async (req, res) => {
             });
         }
 
+        logbook.markModified('weeks');
         await logbook.save();
+
+
         res.status(200).json({ message: 'Logbook entry saved', logbook });
     } catch (error) {
         console.error("Error in saveLogbookEntry:", error); // Log the actual error
