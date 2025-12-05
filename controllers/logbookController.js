@@ -20,9 +20,12 @@ exports.getLogbook = async (req, res) => {
 };
 
 // Save Draft for a specific week
+// Save Draft for a specific week
 exports.saveLogbookEntry = async (req, res) => {
     try {
         const { studentId, month, year, weekNumber, data } = req.body;
+
+        console.log("Saving logbook entry:", { studentId, month, year, weekNumber }); // Debug log
 
         let logbook = await Logbook.findOne({ studentId, month, year });
 
@@ -38,15 +41,28 @@ exports.saveLogbookEntry = async (req, res) => {
 
         const weekIndex = logbook.weeks.findIndex(w => w.weekNumber === weekNumber);
         if (weekIndex > -1) {
-            logbook.weeks[weekIndex] = { ...logbook.weeks[weekIndex], ...data, lastUpdated: Date.now() };
+            // Update existing week
+            logbook.weeks[weekIndex].activities = data.activities;
+            logbook.weeks[weekIndex].techSkills = data.techSkills;
+            logbook.weeks[weekIndex].softSkills = data.softSkills;
+            logbook.weeks[weekIndex].trainings = data.trainings;
+            logbook.weeks[weekIndex].lastUpdated = Date.now();
         } else {
-            logbook.weeks.push({ weekNumber, ...data });
+            // Add new week
+            logbook.weeks.push({
+                weekNumber,
+                activities: data.activities,
+                techSkills: data.techSkills,
+                softSkills: data.softSkills,
+                trainings: data.trainings
+            });
         }
 
         await logbook.save();
         res.status(200).json({ message: 'Logbook entry saved', logbook });
     } catch (error) {
-        res.status(500).json({ message: 'Error saving logbook', error });
+        console.error("Error in saveLogbookEntry:", error); // Log the actual error
+        res.status(500).json({ message: 'Error saving logbook', error: error.message });
     }
 };
 
