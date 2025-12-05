@@ -20,16 +20,25 @@ exports.getLogbook = async (req, res) => {
 };
 
 // Save Draft for a specific week
-// Save Draft for a specific week
 exports.saveLogbookEntry = async (req, res) => {
     try {
         const { studentId, month, year, weekNumber, data } = req.body;
 
-        console.log("Saving logbook entry:", { studentId, month, year, weekNumber }); // Debug log
+        console.log("Saving logbook entry - Request Body:", JSON.stringify(req.body));
+
+        if (!data) {
+            return res.status(400).json({ message: "Data payload is missing" });
+        }
+
+        const parsedWeekNumber = parseInt(weekNumber);
+        if (isNaN(parsedWeekNumber)) {
+            return res.status(400).json({ message: "Invalid week number" });
+        }
 
         let logbook = await Logbook.findOne({ studentId, month, year });
 
         if (!logbook) {
+            console.log("Creating new logbook for:", { studentId, month, year });
             logbook = new Logbook({
                 studentId,
                 month,
@@ -39,22 +48,24 @@ exports.saveLogbookEntry = async (req, res) => {
             });
         }
 
-        const weekIndex = logbook.weeks.findIndex(w => w.weekNumber === weekNumber);
+        const weekIndex = logbook.weeks.findIndex(w => w.weekNumber === parsedWeekNumber);
         if (weekIndex > -1) {
             // Update existing week
-            logbook.weeks[weekIndex].activities = data.activities;
-            logbook.weeks[weekIndex].techSkills = data.techSkills;
-            logbook.weeks[weekIndex].softSkills = data.softSkills;
-            logbook.weeks[weekIndex].trainings = data.trainings;
+            console.log("Updating existing week:", parsedWeekNumber);
+            logbook.weeks[weekIndex].activities = data.activities || "";
+            logbook.weeks[weekIndex].techSkills = data.techSkills || "";
+            logbook.weeks[weekIndex].softSkills = data.softSkills || "";
+            logbook.weeks[weekIndex].trainings = data.trainings || "";
             logbook.weeks[weekIndex].lastUpdated = Date.now();
         } else {
             // Add new week
+            console.log("Adding new week:", parsedWeekNumber);
             logbook.weeks.push({
-                weekNumber,
-                activities: data.activities,
-                techSkills: data.techSkills,
-                softSkills: data.softSkills,
-                trainings: data.trainings
+                weekNumber: parsedWeekNumber,
+                activities: data.activities || "",
+                techSkills: data.techSkills || "",
+                softSkills: data.softSkills || "",
+                trainings: data.trainings || ""
             });
         }
 
