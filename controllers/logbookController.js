@@ -48,10 +48,12 @@ exports.saveLogbookEntry = async (req, res) => {
             });
         }
 
-        const weekIndex = logbook.weeks.findIndex(w => w.weekNumber === parsedWeekNumber);
+        // Find if this week already exists
+        const weekIndex = logbook.weeks.findIndex(week => week.weekNumber === parsedWeekNumber);
+
         if (weekIndex > -1) {
             // Update existing week
-            console.log("Updating existing week:", parsedWeekNumber);
+            console.log("Updating existing week index:", weekIndex);
             logbook.weeks[weekIndex].activities = data.activities || "";
             logbook.weeks[weekIndex].techSkills = data.techSkills || "";
             logbook.weeks[weekIndex].softSkills = data.softSkills || "";
@@ -59,7 +61,7 @@ exports.saveLogbookEntry = async (req, res) => {
             logbook.weeks[weekIndex].lastUpdated = Date.now();
         } else {
             // Add new week
-            console.log("Adding new week:", parsedWeekNumber);
+            console.log("Pushing new week to array");
             logbook.weeks.push({
                 weekNumber: parsedWeekNumber,
                 activities: data.activities || "",
@@ -69,8 +71,10 @@ exports.saveLogbookEntry = async (req, res) => {
             });
         }
 
+        console.log("Weeks array before save:", JSON.stringify(logbook.weeks));
         logbook.markModified('weeks');
         await logbook.save();
+        console.log("Save completed. Weeks array after save:", JSON.stringify(logbook.weeks));
 
 
         res.status(200).json({ message: 'Logbook entry saved', logbook });
