@@ -48,6 +48,11 @@ exports.saveLogbookEntry = async (req, res) => {
             });
         }
 
+        // Ensure weeks array exists (for legacy documents)
+        if (!logbook.weeks) {
+            logbook.weeks = [];
+        }
+
         // Find if this week already exists
         const weekIndex = logbook.weeks.findIndex(week => week.weekNumber === parsedWeekNumber);
 
