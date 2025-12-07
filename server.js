@@ -35,6 +35,7 @@ if (!fs.existsSync(cvDir)) fs.mkdirSync(cvDir);
 if (!fs.existsSync(profileDir)) fs.mkdirSync(profileDir);
 
 app.use('/uploads', express.static(uploadDir));
+app.use('/api/uploads', express.static(uploadDir)); // Also serve at /api/uploads for consistency
 
 const authRoutes = require('./routes/authRoutes');
 const internshipRoutes = require('./routes/internshipRoutes');
