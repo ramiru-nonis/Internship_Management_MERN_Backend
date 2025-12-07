@@ -50,8 +50,8 @@ exports.getAllSubmissions = async (req, res) => {
             ...logbooks.map(l => ({
                 id: l._id,
                 type: 'Logbook',
-                studentName: `${l.studentId?.firstName} ${l.studentId?.lastName}`,
-                cbNumber: l.studentId?.cbNumber,
+                name: l.studentId ? `${l.studentId.firstName} ${l.studentId.lastName}` : "Unknown Student",
+                cbNumber: l.studentId?.cbNumber || "N/A",
                 month: l.month,
                 status: l.status,
                 date: l.updatedAt
@@ -59,8 +59,8 @@ exports.getAllSubmissions = async (req, res) => {
             ...marksheets.map(m => ({
                 id: m._id,
                 type: 'Marksheet',
-                studentName: `${m.studentId?.firstName} ${m.studentId?.lastName}`,
-                cbNumber: m.studentId?.cbNumber,
+                name: m.studentId ? `${m.studentId.firstName} ${m.studentId.lastName}` : "Unknown Student",
+                cbNumber: m.studentId?.cbNumber || "N/A",
                 status: 'Submitted',
                 date: m.submittedDate,
                 fileUrl: m.fileUrl
@@ -68,8 +68,8 @@ exports.getAllSubmissions = async (req, res) => {
             ...presentations.map(p => ({
                 id: p._id,
                 type: 'Exit Presentation',
-                studentName: `${p.studentId?.firstName} ${p.studentId?.lastName}`,
-                cbNumber: p.studentId?.cbNumber,
+                name: p.studentId ? `${p.studentId.firstName} ${p.studentId.lastName}` : "Unknown Student",
+                cbNumber: p.studentId?.cbNumber || "N/A",
                 status: 'Submitted',
                 date: p.submittedDate,
                 fileUrl: p.fileUrl
