@@ -29,10 +29,14 @@ const fs = require('fs');
 const uploadDir = path.join(__dirname, 'uploads');
 const cvDir = path.join(uploadDir, 'cv');
 const profileDir = path.join(uploadDir, 'profile');
+const marksheetDir = path.join(uploadDir, 'marksheet');
+const presentationDir = path.join(uploadDir, 'presentation');
 
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir);
 if (!fs.existsSync(cvDir)) fs.mkdirSync(cvDir);
 if (!fs.existsSync(profileDir)) fs.mkdirSync(profileDir);
+if (!fs.existsSync(marksheetDir)) fs.mkdirSync(marksheetDir);
+if (!fs.existsSync(presentationDir)) fs.mkdirSync(presentationDir);
 
 app.use('/uploads', express.static(uploadDir));
 app.use('/api/uploads', express.static(uploadDir)); // Also serve at /api/uploads for consistency
