@@ -1,6 +1,6 @@
 const Marksheet = require('../models/Marksheet');
 const Presentation = require('../models/Presentation');
-const Logbook = require('../models/Logbook');
+
 const fs = require('fs');
 const path = require('path');
 
@@ -42,20 +42,11 @@ exports.uploadPresentation = async (req, res) => {
 
 exports.getAllSubmissions = async (req, res) => {
     try {
-        const logbooks = await Logbook.find({ submittedToCoordinator: true }).populate('studentId', 'firstName lastName cbNumber');
+        // Logbook removed
         const marksheets = await Marksheet.find().populate('studentId', 'firstName lastName cbNumber');
         const presentations = await Presentation.find().populate('studentId', 'firstName lastName cbNumber');
 
         const combined = [
-            ...logbooks.map(l => ({
-                id: l._id,
-                type: 'Logbook',
-                name: l.studentId ? `${l.studentId.firstName} ${l.studentId.lastName}` : "Unknown Student",
-                cbNumber: l.studentId?.cbNumber || "N/A",
-                month: l.month,
-                status: l.status,
-                date: l.updatedAt
-            })),
             ...marksheets.map(m => ({
                 id: m._id,
                 type: 'Marksheet',
