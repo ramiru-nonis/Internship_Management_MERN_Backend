@@ -35,6 +35,12 @@ exports.saveLogbookEntry = async (req, res) => {
             return res.status(400).json({ message: "Invalid week number" });
         }
 
+        // Validate Student ID
+        const mongoose = require('mongoose');
+        if (!mongoose.Types.ObjectId.isValid(studentId)) {
+            return res.status(400).json({ message: "Invalid Student ID format" });
+        }
+
         let logbook = await Logbook.findOne({ studentId, month, year });
 
         if (!logbook) {
@@ -85,7 +91,8 @@ exports.saveLogbookEntry = async (req, res) => {
         res.status(200).json({ message: 'Logbook entry saved', logbook });
     } catch (error) {
         console.error("Error in saveLogbookEntry:", error); // Log the actual error
-        res.status(500).json({ message: 'Error saving logbook', error: error.message });
+        // Return the specific error message to the client
+        res.status(500).json({ message: `Error saving logbook: ${error.message}`, error: error.message });
     }
 };
 
