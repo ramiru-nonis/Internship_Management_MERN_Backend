@@ -77,7 +77,30 @@ exports.saveLogbookEntry = async (req, res) => {
             });
         }
 
-        await logbook.save();
+        try {
+            await logbook.save();
+        } catch (saveError) {
+            // Self-healing: Drop legacy index if it causes issues
+            if (saveError.code === 11000 && saveError.message.includes('student_1_week_number_1')) {
+                console.warn("Legacy index 'student_1_week_number_1' detected. Dropping it...");
+                try {
+                    await Logbook.collection.dropIndex('student_1_week_number_1');
+                    console.log("Legacy index dropped. Retrying save...");
+                    await logbook.save(); // Retry once
+                } catch (retryError) {
+                    console.error("Retry failed:", retryError);
+                    throw retryError;
+                }
+            } else if (saveError.code === 11000 && saveError.message.includes('student_null_week_number_null')) {
+                // Fallback for differently named null index
+                console.warn("Legacy index detected (null/null). Dropping indexes...");
+                await Logbook.collection.dropIndexes();
+                await logbook.save();
+            } else {
+                throw saveError;
+            }
+        }
+
         res.status(200).json({ message: "Entry saved", logbook });
 
     } catch (error) {
