@@ -1,0 +1,195 @@
+const Logbook = require('../models/Logbook');
+const User = require('../models/User');
+const Notification = require('../models/Notification');
+const sendEmail = require('../utils/sendEmail');
+
+// Get Logbook for a specific month
+exports.getLogbook = async (req, res) => {
+    try {
+        const { studentId, month, year } = req.query;
+
+        const logbook = await Logbook.findOne({
+            studentId,
+            month: parseInt(month),
+            year: parseInt(year)
+        });
+
+        if (!logbook) {
+            return res.status(200).json({ exists: false });
+        }
+
+        res.status(200).json({ exists: true, logbook });
+    } catch (error) {
+        console.error("Error fetching logbook:", error);
+        res.status(500).json({ message: 'Error fetching logbook', error: error.message });
+    }
+};
+
+// Save Draft (Weekly Entry)
+exports.saveLogbookEntry = async (req, res) => {
+    try {
+        const { studentId, month, year, weekNumber, data, mentorEmail } = req.body;
+
+        if (!data) return res.status(400).json({ message: "No data provided" });
+
+        const monthNum = parseInt(month);
+        const yearNum = parseInt(year);
+        const weekNum = parseInt(weekNumber);
+
+        // Find or Create Logbook
+        let logbook = await Logbook.findOne({ studentId, month: monthNum, year: yearNum });
+
+        if (!logbook) {
+            // Create new draft
+            logbook = new Logbook({
+                studentId,
+                month: monthNum,
+                year: yearNum,
+                status: 'Pending', // Technically 'Draft' for UI but DB default is Pending. Let's make it consistent.
+                mentorEmail: mentorEmail || "", // Will be updated on submit or strictly passed
+                weeks: []
+            });
+            // Override status to Draft locally if we want separate status? 
+            // Requirement says: "Pending by default for the student and it should be stored in the logbook table... when student fills all four weeks... click get approval".
+            // Actually, while editing it's effectively a draft. But let's stick to the user's flow: "stored... as summary".
+        }
+
+        // Requirements check: "When the student fills all four weeks... and click get approval... stored in logbook history... as pending".
+        // This implies before that it's just saved data.
+
+        // Upsert Week Data
+        const weekIndex = logbook.weeks.findIndex(w => w.weekNumber === weekNum);
+
+        const newWeekData = {
+            weekNumber: weekNum,
+            activities: data.activities || "",
+            techSkills: data.techSkills || "",
+            softSkills: data.softSkills || "",
+            trainings: data.trainings || "",
+            lastUpdated: Date.now()
+        };
+
+        if (weekIndex > -1) {
+            logbook.weeks[weekIndex] = newWeekData;
+        } else {
+            logbook.weeks.push(newWeekData);
+        }
+
+        // Ensure mentor available if passed
+        if (mentorEmail) logbook.mentorEmail = mentorEmail;
+
+        await logbook.save();
+
+        res.status(200).json({ message: "Entry saved", logbook });
+
+    } catch (error) {
+        console.error("Error saving logbook entry:", error);
+        res.status(500).json({ message: "Error saving logbook entry", error: error.message });
+    }
+};
+
+// Submit for Approval
+exports.submitLogbook = async (req, res) => {
+    try {
+        const { logbookId, mentorEmail } = req.body;
+
+        const logbook = await Logbook.findById(logbookId).populate('studentId');
+        if (!logbook) return res.status(404).json({ message: "Logbook not found" });
+
+        logbook.status = 'Pending';
+        logbook.submittedDate = Date.now();
+        logbook.mentorEmail = mentorEmail;
+        await logbook.save();
+
+        // Send Email
+        const backendUrl = process.env.BACKEND_URL || `${req.protocol}://${req.get('host')}`;
+        const approveLink = `${backendUrl}/api/logbooks/action/${logbook._id}/Approved`;
+        const rejectLink = `${backendUrl}/api/logbooks/action/${logbook._id}/Rejected`;
+
+        // Generate HTML Table
+        const rows = logbook.weeks.sort((a, b) => a.weekNumber - b.weekNumber).map(w => `
+            <tr>
+                <td style="border: 1px solid #ddd; padding: 8px;">Week ${w.weekNumber}</td>
+                <td style="border: 1px solid #ddd; padding: 8px;">${w.activities}</td>
+                <td style="border: 1px solid #ddd; padding: 8px;">${w.techSkills}</td>
+                <td style="border: 1px solid #ddd; padding: 8px;">${w.softSkills}</td>
+                <td style="border: 1px solid #ddd; padding: 8px;">${w.trainings}</td>
+            </tr>
+        `).join('');
+
+        const message = `
+            <h2>Logbook Approval Request</h2>
+            <p><strong>Student:</strong> ${logbook.studentId.firstName} ${logbook.studentId.lastName}</p>
+            <p><strong>Month:</strong> ${logbook.month}</p>
+            <table style="border-collapse: collapse; width: 100%;">
+                <thead>
+                    <tr style="background-color: #f2f2f2;">
+                        <th style="border: 1px solid #ddd; padding: 8px;">Week</th>
+                        <th style="border: 1px solid #ddd; padding: 8px;">Activities</th>
+                        <th style="border: 1px solid #ddd; padding: 8px;">Tech Skills</th>
+                        <th style="border: 1px solid #ddd; padding: 8px;">Soft Skills</th>
+                        <th style="border: 1px solid #ddd; padding: 8px;">Trainings</th>
+                    </tr>
+                </thead>
+                <tbody>${rows}</tbody>
+            </table>
+            <div style="margin-top: 20px;">
+                <a href="${approveLink}" style="background-color: #4CAF50; color: white; padding: 10px 20px; text-decoration: none; margin-right: 10px;">Approve</a>
+                <a href="${rejectLink}" style="background-color: #f44336; color: white; padding: 10px 20px; text-decoration: none;">Reject</a>
+            </div>
+        `;
+
+        await sendEmail({
+            email: mentorEmail,
+            subject: `Logbook Approval - Month ${logbook.month}`,
+            message,
+            isHtml: true
+        });
+
+        res.status(200).json({ message: "Submitted successfully", logbook });
+
+    } catch (error) {
+        console.error("Error submitting logbook:", error);
+        res.status(500).json({ message: "Error submitting logbook", error: error.message });
+    }
+};
+
+// Handle Mentor Action
+exports.handleMentorActionLink = async (req, res) => {
+    try {
+        const { id, status } = req.params;
+        if (!['Approved', 'Rejected'].includes(status)) return res.status(400).send("Invalid status");
+
+        const logbook = await Logbook.findById(id);
+        if (!logbook) return res.status(404).send("Logbook not found");
+
+        logbook.status = status;
+        await logbook.save();
+
+        // Notify Student
+        await Notification.create({
+            recipient: logbook.studentId,
+            message: `Your logbook for Month ${logbook.month} was ${status}.`,
+            type: status === 'Approved' ? 'success' : 'error'
+        });
+
+        res.send(`<h1 style="text-align:center; margin-top:50px;">Logbook ${status} Successfully</h1>`);
+
+    } catch (error) {
+        console.error("Action error:", error);
+        res.status(500).send("Server Error");
+    }
+};
+
+// Get Student History
+exports.getHistory = async (req, res) => {
+    try {
+        const { studentId } = req.params;
+        // Fetch all logbooks for this student that are NOT drafts? Or all? User said "logbook table record for that month should be saved in a separate page called logbook history... along with submitted date... pending by default".
+        // This implies only submitted ones.
+        const logbooks = await Logbook.find({ studentId }).sort({ year: 1, month: 1 });
+        res.status(200).json(logbooks);
+    } catch (error) {
+        res.status(500).json({ message: 'Error fetching history', error: error.message });
+    }
+};
