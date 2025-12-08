@@ -58,7 +58,7 @@ app.use('/api/applications', applicationRoutes);
 app.use('/api/placement', placementRoutes);
 app.use('/api/placement', placementRoutes);
 app.use('/api/notifications', notificationRoutes);
-app.use('/api/logbooks', require('./routes/logbookRoutes'));
+
 app.use('/api/submissions', require('./routes/submissionRoutes'));
 
 app.get('/', (req, res) => {
