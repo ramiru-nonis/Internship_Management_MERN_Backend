@@ -11,5 +11,6 @@ router.post('/submit', logbookController.submitLogbook);
 router.post('/submit-all', logbookController.submitAllLogbooks);
 router.get('/history/:studentId', logbookController.getHistory);
 router.post('/mentor-action', logbookController.mentorAction); // Should arguably be unprotected if accessed via email link, or protected if mentor portal
+router.get('/action/:id/:status', logbookController.handleMentorActionLink);
 
 module.exports = router;

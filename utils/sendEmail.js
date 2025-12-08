@@ -16,8 +16,8 @@ const sendEmail = async (options) => {
         from: process.env.EMAIL_FROM || 'noreply@internshipmanager.com',
         to: options.email,
         subject: options.subject,
-        text: options.message,
-        html: options.html // Optional HTML content
+        text: options.isHtml ? undefined : options.message, // Send text only if not HTML
+        html: options.isHtml ? options.message : options.html // Use message as HTML if isHtml is true
     };
 
     // Send email
