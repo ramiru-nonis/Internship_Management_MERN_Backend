@@ -45,7 +45,7 @@ exports.saveLogbookEntry = async (req, res) => {
                 studentId,
                 month: monthNum,
                 year: yearNum,
-                status: 'Pending', // Technically 'Draft' for UI but DB default is Pending. Let's make it consistent.
+                status: 'Draft', // Default to Draft
                 mentorEmail: mentorEmail || "", // Will be updated on submit or strictly passed
                 weeks: []
             });

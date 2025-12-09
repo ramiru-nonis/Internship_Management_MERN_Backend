@@ -17,8 +17,8 @@ const LogbookSchema = new mongoose.Schema({
     },
     status: {
         type: String,
-        enum: ['Pending', 'Approved', 'Rejected'],
-        default: 'Pending'
+        enum: ['Draft', 'Pending', 'Approved', 'Rejected'],
+        default: 'Draft'
     },
     mentorEmail: {
         type: String,
