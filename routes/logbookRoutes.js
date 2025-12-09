@@ -8,7 +8,7 @@ const logbookController = require('../controllers/logbookController');
 router.get('/', logbookController.getLogbook);
 router.post('/entry', logbookController.saveLogbookEntry);
 router.post('/submit', logbookController.submitLogbook);
-router.post('/submit-all', logbookController.submitAllLogbooks);
+// router.post('/submit-all', logbookController.submitAllLogbooks);
 router.get('/history/:studentId', logbookController.getHistory);
 router.get('/action/:id/:status', logbookController.handleMentorActionLink);
 
