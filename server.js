@@ -17,6 +17,7 @@ app.use(cors({
     origin: [
         'http://localhost:3000',
         'https://client-1zry3usc9-ramiru-nonis-projects.vercel.app',
+        'https://client-lime-sigma-95.vercel.app',
         process.env.FRONTEND_URL
     ].filter(Boolean),
     credentials: true
