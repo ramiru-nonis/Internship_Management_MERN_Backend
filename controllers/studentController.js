@@ -1,5 +1,6 @@
 const Student = require('../models/Student');
 const User = require('../models/User');
+const { createNotification } = require('./notificationController');
 
 // @desc    Get student profile
 // @route   GET /api/students/profile
@@ -52,14 +53,30 @@ const updateProfile = async (req, res) => {
         if (status && student.status !== status) {
             student.status = status;
 
-            // Notify Coordinators
-            const { createNotification } = require('./notificationController');
+            // Notify Coordinators (Status Change)
             const coordinators = await User.find({ role: 'coordinator' });
 
             for (const coordinator of coordinators) {
                 await createNotification(
                     coordinator._id,
                     `Student ${student.first_name} ${student.last_name} has changed their status to: ${status}`,
+                    'info',
+                    student._id,
+                    'Student'
+                );
+            }
+        }
+
+        // Notify Coordinators (Profile Details Update)
+        const updateFields = ['first_name', 'last_name', 'contact_number', 'degree', 'degree_level', 'availability', 'preferences'];
+        const hasProfileUpdates = updateFields.some(field => req.body[field] !== undefined);
+
+        if (hasProfileUpdates) {
+            const coordinators = await User.find({ role: 'coordinator' });
+            for (const coordinator of coordinators) {
+                await createNotification(
+                    coordinator._id,
+                    `Student ${student.first_name} ${student.last_name} has updated their profile details.`,
                     'info',
                     student._id,
                     'Student'
@@ -92,6 +109,18 @@ const uploadCV = async (req, res) => {
         // Cloudinary returns the URL in req.file.path
         student.cv = req.file.path;
         await student.save();
+
+        // Notify Coordinators
+        const coordinators = await User.find({ role: 'coordinator' });
+        for (const coordinator of coordinators) {
+            await createNotification(
+                coordinator._id,
+                `Student ${student.first_name} ${student.last_name} has uploaded a new CV.`,
+                'info',
+                student._id,
+                'Student'
+            );
+        }
 
         res.json({ message: 'CV uploaded successfully', cv: student.cv });
     } catch (error) {
