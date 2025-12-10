@@ -1,5 +1,6 @@
 const User = require('../models/User');
 const jwt = require('jsonwebtoken');
+const { createNotification } = require('./notificationController');
 
 // Generate JWT
 const generateToken = (id) => {
@@ -126,6 +127,13 @@ const registerUser = async (req, res) => {
                     profile_picture: profilePath,
                     preferences: preferences ? JSON.parse(preferences) : []
                 });
+
+                // Send welcome notification reminding about placement form
+                await createNotification(
+                    user._id,
+                    `Welcome to InternHub! Please submit your Industry Placement Form as soon as possible.`,
+                    'info'
+                );
             } catch (error) {
                 // Rollback user creation if student creation fails
                 await User.findByIdAndDelete(user._id);
