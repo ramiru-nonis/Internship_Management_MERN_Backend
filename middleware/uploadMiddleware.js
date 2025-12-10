@@ -1,5 +1,35 @@
 const multer = require('multer');
-const { storage } = require('../config/cloudinary');
+const { storage: cloudinaryStorage } = require('../config/cloudinary');
+const path = require('path');
+const fs = require('fs');
+
+// Ensure local directories exist if using local storage
+// (Although server.js does this, it's safe to have here for isolated testing/usage)
+const createDir = (dir) => {
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+};
+
+// Local Storage Configuration
+const localStorage = multer.diskStorage({
+    destination: function (req, file, cb) {
+        let uploadPath = 'uploads/';
+        if (file.fieldname === 'cv') {
+            uploadPath += 'cv';
+        } else if (file.fieldname === 'profile_picture') {
+            uploadPath += 'profile';
+        }
+        createDir(uploadPath);
+        cb(null, uploadPath);
+    },
+    filename: function (req, file, cb) {
+        // Create unique filename: fieldname-timestamp.ext
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+        cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
+    }
+});
+
+// Select storage based on env
+const storage = process.env.STORAGE_TYPE === 'local' ? localStorage : cloudinaryStorage;
 
 // Init upload
 const upload = multer({
@@ -14,9 +44,6 @@ const upload = multer({
 function checkFileType(file, cb) {
     const path = require('path');
     if (file.fieldname === 'cv') {
-        // CV must be PDF
-        // Cloudinary might change the mimetype or extension, but multer checks this before upload usually
-        // For Cloudinary, we trust the upload but basic check is good
         const filetypes = /pdf/;
         const extname = filetypes.test(path.extname(file.originalname).toLowerCase());
         const mimetype = filetypes.test(file.mimetype);
@@ -27,7 +54,6 @@ function checkFileType(file, cb) {
             cb('Error: CV must be a PDF file!');
         }
     } else if (file.fieldname === 'profile_picture') {
-        // Profile picture must be image
         const filetypes = /jpeg|jpg|png|webp/;
         const extname = filetypes.test(path.extname(file.originalname).toLowerCase());
         const mimetype = filetypes.test(file.mimetype);
