@@ -91,7 +91,13 @@ exports.saveLogbookEntry = async (req, res) => {
 // Submit for Approval
 exports.submitLogbook = async (req, res) => {
     try {
+        console.log("[DEBUG] submitLogbook called with body:", req.body);
         const { logbookId, mentorEmail } = req.body;
+
+        if (!mentorEmail) {
+            console.error("[DEBUG] Missing mentorEmail in request body");
+            return res.status(400).json({ message: "Mentor email is missing in request." });
+        }
         const Student = require('../models/Student'); // Import Student model
 
         const logbook = await Logbook.findById(logbookId).populate('studentId');

@@ -26,7 +26,16 @@ const sendEmail = async (options) => {
     };
 
     // Send email
-    await transporter.sendMail(mailOptions);
+    try {
+        console.log(`[DEBUG] Attempting to send email to: ${options.email}`);
+        console.log(`[DEBUG] SMTP Config - Host: ${transporter.options.host}, Port: ${transporter.options.port}, User: ${transporter.options.auth.user}`);
+
+        const info = await transporter.sendMail(mailOptions);
+        console.log('Message sent: %s', info.messageId);
+    } catch (error) {
+        console.error("Error sending email:", error);
+        throw error; // Re-throw to be caught by controller
+    }
 };
 
 module.exports = sendEmail;
