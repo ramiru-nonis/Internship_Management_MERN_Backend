@@ -3,10 +3,15 @@ const nodemailer = require('nodemailer');
 const sendEmail = async (options) => {
     // Create a transporter
     // For production, use environment variables for host, port, user, pass
+    // Create a transporter
+    // Create a transporter
+    // MailSender SMTP Configuration (Defaults to MailSender if env vars missing)
     const transporter = nodemailer.createTransport({
-        service: 'gmail', // or your preferred service
+        host: process.env.SMTP_HOST || 'smtp.mailersend.net',
+        port: process.env.SMTP_PORT || 587,
+        secure: false, // true for 465, false for other ports
         auth: {
-            user: process.env.EMAIL_USERNAME,
+            user: process.env.EMAIL_USERNAME, // User prefers using just these
             pass: process.env.EMAIL_PASSWORD
         }
     });

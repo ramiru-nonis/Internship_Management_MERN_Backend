@@ -92,9 +92,16 @@ exports.saveLogbookEntry = async (req, res) => {
 exports.submitLogbook = async (req, res) => {
     try {
         const { logbookId, mentorEmail } = req.body;
+        const Student = require('../models/Student'); // Import Student model
 
         const logbook = await Logbook.findById(logbookId).populate('studentId');
         if (!logbook) return res.status(404).json({ message: "Logbook not found" });
+
+        // Fetch Student Profile to get Names
+        const studentProfile = await Student.findOne({ user: logbook.studentId._id });
+        const studentName = studentProfile
+            ? `${studentProfile.first_name} ${studentProfile.last_name}`
+            : "Student";
 
         logbook.status = 'Pending';
         logbook.submittedDate = Date.now();
@@ -103,6 +110,8 @@ exports.submitLogbook = async (req, res) => {
 
         // Send Email
         const backendUrl = process.env.BACKEND_URL || `${req.protocol}://${req.get('host')}`;
+        // Ensure backendUrl doesn't have trailing slash if we add one, or just join carefully.
+        // req.get('host') gives host:port. protocol gives http.
         const approveLink = `${backendUrl}/api/logbooks/action/${logbook._id}/Approved`;
         const rejectLink = `${backendUrl}/api/logbooks/action/${logbook._id}/Rejected`;
 
@@ -110,38 +119,44 @@ exports.submitLogbook = async (req, res) => {
         const rows = logbook.weeks.sort((a, b) => a.weekNumber - b.weekNumber).map(w => `
             <tr>
                 <td style="border: 1px solid #ddd; padding: 8px;">Week ${w.weekNumber}</td>
-                <td style="border: 1px solid #ddd; padding: 8px;">${w.activities}</td>
-                <td style="border: 1px solid #ddd; padding: 8px;">${w.techSkills}</td>
-                <td style="border: 1px solid #ddd; padding: 8px;">${w.softSkills}</td>
-                <td style="border: 1px solid #ddd; padding: 8px;">${w.trainings}</td>
+                <td style="border: 1px solid #ddd; padding: 8px;">${w.activities || '-'}</td>
+                <td style="border: 1px solid #ddd; padding: 8px;">${w.techSkills || '-'}</td>
+                <td style="border: 1px solid #ddd; padding: 8px;">${w.softSkills || '-'}</td>
+                <td style="border: 1px solid #ddd; padding: 8px;">${w.trainings || '-'}</td>
             </tr>
         `).join('');
 
         const message = `
-            <h2>Logbook Approval Request</h2>
-            <p><strong>Student:</strong> ${logbook.studentId.firstName} ${logbook.studentId.lastName}</p>
-            <p><strong>Month:</strong> ${logbook.month}</p>
-            <table style="border-collapse: collapse; width: 100%;">
-                <thead>
-                    <tr style="background-color: #f2f2f2;">
-                        <th style="border: 1px solid #ddd; padding: 8px;">Week</th>
-                        <th style="border: 1px solid #ddd; padding: 8px;">Activities</th>
-                        <th style="border: 1px solid #ddd; padding: 8px;">Tech Skills</th>
-                        <th style="border: 1px solid #ddd; padding: 8px;">Soft Skills</th>
-                        <th style="border: 1px solid #ddd; padding: 8px;">Trainings</th>
-                    </tr>
-                </thead>
-                <tbody>${rows}</tbody>
-            </table>
-            <div style="margin-top: 20px;">
-                <a href="${approveLink}" style="background-color: #4CAF50; color: white; padding: 10px 20px; text-decoration: none; margin-right: 10px;">Approve</a>
-                <a href="${rejectLink}" style="background-color: #f44336; color: white; padding: 10px 20px; text-decoration: none;">Reject</a>
+            <div style="font-family: Arial, sans-serif; padding: 20px;">
+                <h2>Logbook Approval Request</h2>
+                <p><strong>Student:</strong> ${studentName}</p>
+                <p><strong>Month:</strong> ${logbook.month} / ${logbook.year}</p>
+                
+                <table style="border-collapse: collapse; width: 100%; margin: 20px 0;">
+                    <thead>
+                        <tr style="background-color: #f2f2f2;">
+                            <th style="border: 1px solid #ddd; padding: 8px;">Week</th>
+                            <th style="border: 1px solid #ddd; padding: 8px;">Activities</th>
+                            <th style="border: 1px solid #ddd; padding: 8px;">Tech Skills</th>
+                            <th style="border: 1px solid #ddd; padding: 8px;">Soft Skills</th>
+                            <th style="border: 1px solid #ddd; padding: 8px;">Trainings</th>
+                        </tr>
+                    </thead>
+                    <tbody>${rows}</tbody>
+                </table>
+                
+                <div style="margin-top: 30px;">
+                    <p>Please review the entries above and select an action:</p>
+                    <a href="${approveLink}" style="background-color: #28a745; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; margin-right: 15px; display: inline-block;">Approve Logbook</a>
+                    <a href="${rejectLink}" style="background-color: #dc3545; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; display: inline-block;">Reject Logbook</a>
+                </div>
+                <p style="margin-top: 20px; color: #666; font-size: 12px;">If rejected, the student will be notified to revise their entries.</p>
             </div>
         `;
 
         await sendEmail({
             email: mentorEmail,
-            subject: `Logbook Approval - Month ${logbook.month}`,
+            subject: `Logbook Approval Request - ${studentName}`,
             message,
             isHtml: true
         });
@@ -169,11 +184,25 @@ exports.handleMentorActionLink = async (req, res) => {
         // Notify Student
         await Notification.create({
             recipient: logbook.studentId,
-            message: `Your logbook for Month ${logbook.month} was ${status}.`,
+            message: `Your logbook for Month ${logbook.month} was ${status} by your mentor.`,
             type: status === 'Approved' ? 'success' : 'error'
         });
 
-        res.send(`<h1 style="text-align:center; margin-top:50px;">Logbook ${status} Successfully</h1>`);
+        // Nice Success Page
+        const color = status === 'Approved' ? '#28a745' : '#dc3545';
+        const icon = status === 'Approved' ? '✅' : '❌';
+
+        const html = `
+            <div style="font-family: Arial, sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; background-color: #f8f9fa;">
+                <div style="text-align: center; padding: 40px; background: white; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                    <div style="font-size: 64px; margin-bottom: 20px;">${icon}</div>
+                    <h1 style="color: ${color}; margin: 0 0 10px 0;">Successfully ${status}</h1>
+                    <p style="color: #666; margin: 0;">The student has been notified of your decision.</p>
+                </div>
+            </div>
+        `;
+
+        res.send(html);
 
     } catch (error) {
         console.error("Action error:", error);
