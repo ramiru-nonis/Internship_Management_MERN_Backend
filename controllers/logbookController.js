@@ -94,9 +94,22 @@ exports.submitLogbook = async (req, res) => {
         console.log("[DEBUG] submitLogbook called with body:", req.body);
         const { logbookId, mentorEmail } = req.body;
 
+        let { logbookId, mentorEmail } = req.body;
+
+        // Fallback: Fetch from Placement Record if missing
         if (!mentorEmail) {
-            console.error("[DEBUG] Missing mentorEmail in request body");
-            return res.status(400).json({ message: "Mentor email is missing in request." });
+            console.log("[DEBUG] email missing, fetching from Placement");
+            const PlacementForm = require('../models/PlacementForm'); // Ensure correct model name
+            const logbook = await Logbook.findById(logbookId);
+            if (logbook && logbook.studentId) {
+                const placement = await PlacementForm.findOne({ student: logbook.studentId }); // Assuming 'student' is the ref field
+                if (placement) mentorEmail = placement.mentor_email;
+            }
+        }
+
+        if (!mentorEmail) {
+            console.error("[DEBUG] Missing mentorEmail in request body and placement record");
+            return res.status(400).json({ message: "Mentor email is missing. Please ensure your Placement Form is submitted." });
         }
         const Student = require('../models/Student'); // Import Student model
 
