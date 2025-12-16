@@ -92,8 +92,6 @@ exports.saveLogbookEntry = async (req, res) => {
 exports.submitLogbook = async (req, res) => {
     try {
         console.log("[DEBUG] submitLogbook called with body:", req.body);
-        const { logbookId, mentorEmail } = req.body;
-
         let { logbookId, mentorEmail } = req.body;
 
         // Fallback: Fetch from Placement Record if missing
