@@ -171,7 +171,8 @@ exports.submitLogbook = async (req, res) => {
 
     } catch (error) {
         console.error("Error submitting logbook:", error);
-        res.status(500).json({ message: "Error submitting logbook", error: error.message });
+        // Send specific error message to frontend
+        res.status(500).json({ message: `Submission failed: ${error.message}`, error: error.message });
     }
 };
 
