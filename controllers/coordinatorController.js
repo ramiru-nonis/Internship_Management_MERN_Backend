@@ -110,13 +110,9 @@ const updateStudentStatus = async (req, res) => {
 // @access  Private (Coordinator/Admin)
 const getAllApplications = async (req, res) => {
     try {
-        const { status, internship, student } = req.query;
+        const { internship, student } = req.query;
 
         let query = {};
-
-        if (status && status !== 'all') {
-            query.status = status;
-        }
 
         if (internship) {
             query.internship = internship;
