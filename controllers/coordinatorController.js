@@ -110,7 +110,7 @@ const updateStudentStatus = async (req, res) => {
 // @access  Private (Coordinator/Admin)
 const getAllApplications = async (req, res) => {
     try {
-        const { internship, student } = req.query;
+        const { internship, student, search } = req.query;
 
         let query = {};
 
@@ -120,6 +120,32 @@ const getAllApplications = async (req, res) => {
 
         if (student) {
             query.student = student;
+        }
+
+        if (search) {
+            // Find matching students
+            const matchingStudents = await Student.find({
+                $or: [
+                    { first_name: { $regex: search, $options: 'i' } },
+                    { last_name: { $regex: search, $options: 'i' } },
+                    { cb_number: { $regex: search, $options: 'i' } }
+                ]
+            }).select('_id');
+
+            const studentIds = matchingStudents.map(s => s._id);
+
+            // Find matching internships (company name)
+            const matchingInternships = await Internship.find({
+                company_name: { $regex: search, $options: 'i' }
+            }).select('_id');
+
+            const internshipIds = matchingInternships.map(i => i._id);
+
+            // Add to query
+            query.$or = [
+                { student: { $in: studentIds } },
+                { internship: { $in: internshipIds } }
+            ];
         }
 
         const applications = await Application.find(query)
