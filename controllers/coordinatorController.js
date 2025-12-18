@@ -134,9 +134,12 @@ const getAllApplications = async (req, res) => {
 
             const studentIds = matchingStudents.map(s => s._id);
 
-            // Find matching internships (company name)
+            // Find matching internships (company name or title)
             const matchingInternships = await Internship.find({
-                company_name: { $regex: search, $options: 'i' }
+                $or: [
+                    { company_name: { $regex: search, $options: 'i' } },
+                    { title: { $regex: search, $options: 'i' } }
+                ]
             }).select('_id');
 
             const internshipIds = matchingInternships.map(i => i._id);
