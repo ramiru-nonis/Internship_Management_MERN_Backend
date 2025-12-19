@@ -3,12 +3,12 @@ const nodemailer = require('nodemailer');
 
 const testEmail = async () => {
     console.log("Testing Email configuration...");
-    console.log("SMTP_HOST:", process.env.SMTP_HOST || 'smtp.mailersend.net');
+    console.log("SMTP_HOST:", process.env.SMTP_HOST || 'smtp.gmail.com');
     console.log("SMTP_PORT:", process.env.SMTP_PORT || 587);
-    console.log("SMTP_USER:", process.env.SMTP_EMAIL || process.env.EMAIL_USERNAME);
+    console.log("SMTP_USER:", process.env.EMAIL_USERNAME);
 
     // Mask password
-    const pass = process.env.SMTP_PASSWORD || process.env.EMAIL_PASSWORD;
+    const pass = process.env.EMAIL_PASSWORD;
     console.log("SMTP_PASS:", pass ? "****" + pass.slice(-4) : "NOT SET");
 
     if (!pass) {
@@ -17,19 +17,19 @@ const testEmail = async () => {
     }
 
     const transporter = nodemailer.createTransport({
-        host: process.env.SMTP_HOST || 'smtp.mailersend.net',
+        host: process.env.SMTP_HOST || 'smtp.gmail.com',
         port: process.env.SMTP_PORT || 587,
         secure: false,
         auth: {
-            user: process.env.SMTP_EMAIL || process.env.EMAIL_USERNAME,
-            pass: process.env.SMTP_PASSWORD || process.env.EMAIL_PASSWORD
+            user: process.env.EMAIL_USERNAME,
+            pass: process.env.EMAIL_PASSWORD
         }
     });
 
     try {
         const info = await transporter.sendMail({
-            from: process.env.EMAIL_FROM || '"Test" <test@example.com>',
-            to: process.env.SMTP_EMAIL || process.env.EMAIL_USERNAME, // Send to self
+            from: process.env.EMAIL_FROM || '"Test" <auracodexs@gmail.com>',
+            to: process.env.EMAIL_USERNAME, // Send to self
             subject: "Test Email from MERN Stack",
             text: "If you received this, your SMTP configuration is correct!",
         });

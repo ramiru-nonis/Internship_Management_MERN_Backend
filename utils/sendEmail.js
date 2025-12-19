@@ -7,11 +7,11 @@ const sendEmail = async (options) => {
     // Create a transporter
     // MailSender SMTP Configuration (Defaults to MailSender if env vars missing)
     const transporter = nodemailer.createTransport({
-        host: process.env.SMTP_HOST || 'smtp.mailersend.net',
+        host: process.env.SMTP_HOST || 'smtp.gmail.com',
         port: process.env.SMTP_PORT || 587,
         secure: false, // true for 465, false for other ports
         auth: {
-            user: process.env.EMAIL_USERNAME, // User prefers using just these
+            user: process.env.EMAIL_USERNAME,
             pass: process.env.EMAIL_PASSWORD
         }
     });
