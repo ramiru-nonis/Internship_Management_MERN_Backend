@@ -39,6 +39,12 @@ exports.saveLogbookEntry = async (req, res) => {
         // Find or Create Logbook
         let logbook = await Logbook.findOne({ studentId, month: monthNum, year: yearNum });
 
+        if (logbook) {
+            if (logbook.status === 'Pending' || logbook.status === 'Approved') {
+                return res.status(400).json({ message: "Cannot edit logbook while it is Pending or Approved." });
+            }
+        }
+
         if (!logbook) {
             // Create new draft
             logbook = new Logbook({
