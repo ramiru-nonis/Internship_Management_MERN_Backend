@@ -15,7 +15,7 @@ const createApplication = async (req, res) => {
 
         // Check if student is already hired/approved
         if (['hired', 'approved', 'intern'].includes(student.status)) {
-            return res.status(400).json({ message: 'You are already hired/approved, so you cannot apply for this internship. Please change your status in settings if this is incorrect.' });
+            return res.status(400).json({ message: 'your are already hired/approved. so you cannot apply for this internship. Please change your status in the profile if this is incorrect' });
         }
 
         const { internshipId } = req.body;
