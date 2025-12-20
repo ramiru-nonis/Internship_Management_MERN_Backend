@@ -102,37 +102,32 @@ exports.submitLogbook = async (req, res) => {
         console.log("[DEBUG] submitLogbook called with body:", req.body);
         let { logbookId, mentorEmail } = req.body;
 
-        // Fallback: Fetch from Placement Record if missing
-        if (!mentorEmail) {
-            console.log("[DEBUG] email missing, fetching from Placement");
-            const PlacementForm = require('../models/PlacementForm'); // Ensure correct model name
-            const logbook = await Logbook.findById(logbookId);
-            if (logbook && logbook.studentId) {
-                // Fix: Look up Student profile first to get Student ID
-                const Student = require('../models/Student');
-                const studentProfile = await Student.findOne({ user: logbook.studentId });
-
-                if (studentProfile) {
-                    const placement = await PlacementForm.findOne({ student: studentProfile._id });
-                    if (placement) mentorEmail = placement.mentor_email;
-                } else {
-                    console.log("[DEBUG] Student profile not found for user:", logbook.studentId);
-                }
-            }
-        }
-
-        console.log("[DEBUG] Final Mentor Email to use:", mentorEmail);
-
-        if (!mentorEmail) {
-            console.error("[DEBUG] Missing mentorEmail in request body and placement record");
-            return res.status(400).json({ message: "Mentor email is missing. Please ensure your Placement Form is submitted." });
-        }
+        // STRICT: Always fetch from Placement Record to ensure source of truth
+        console.log("[DEBUG] Fetching strictly from Placement Record for Logbook:", logbookId);
 
         const logbook = await Logbook.findById(logbookId).populate('studentId');
         if (!logbook) return res.status(404).json({ message: "Logbook not found" });
 
-        // Fetch Student Profile to get Names
+        // Logic to get Mentor Email from Placement Form
         const studentProfile = await Student.findOne({ user: logbook.studentId._id });
+
+        if (studentProfile) {
+            const placement = await PlacementForm.findOne({ student: studentProfile._id });
+            if (placement && placement.mentor_email) {
+                mentorEmail = placement.mentor_email;
+                console.log("[DEBUG] Found Verified Mentor Email:", mentorEmail);
+            } else {
+                console.log("[DEBUG] Placement not found or no email for student:", studentProfile._id);
+            }
+        } else {
+            console.log("[DEBUG] Student profile not found for user:", logbook.studentId._id);
+        }
+
+        if (!mentorEmail) {
+            console.error("[DEBUG] Could not resolve mentorEmail from PlacementForm");
+            return res.status(400).json({ message: "Mentor email not found. Please ensure your Placement Form is submitted and contains a mentor email." });
+        }
+
         const studentName = studentProfile
             ? `${studentProfile.first_name} ${studentProfile.last_name}`
             : "Student";
