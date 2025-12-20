@@ -106,10 +106,20 @@ exports.submitLogbook = async (req, res) => {
             const PlacementForm = require('../models/PlacementForm'); // Ensure correct model name
             const logbook = await Logbook.findById(logbookId);
             if (logbook && logbook.studentId) {
-                const placement = await PlacementForm.findOne({ student: logbook.studentId }); // Assuming 'student' is the ref field
-                if (placement) mentorEmail = placement.mentor_email;
+                // Fix: Look up Student profile first to get Student ID
+                const Student = require('../models/Student');
+                const studentProfile = await Student.findOne({ user: logbook.studentId });
+
+                if (studentProfile) {
+                    const placement = await PlacementForm.findOne({ student: studentProfile._id });
+                    if (placement) mentorEmail = placement.mentor_email;
+                } else {
+                    console.log("[DEBUG] Student profile not found for user:", logbook.studentId);
+                }
             }
         }
+
+        console.log("[DEBUG] Final Mentor Email to use:", mentorEmail);
 
         if (!mentorEmail) {
             console.error("[DEBUG] Missing mentorEmail in request body and placement record");
