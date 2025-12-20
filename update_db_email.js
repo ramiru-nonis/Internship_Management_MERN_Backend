@@ -35,8 +35,8 @@ const updateEmail = async () => {
 
         console.log(`Current Email: ${placement.mentor_email}`);
 
-        // UPDATE TO ORIGINAL MENTOR EMAIL
-        placement.mentor_email = 'sukithachathuranga@internshipmanager.com';
+        // REMOVING EMAIL (User Request)
+        placement.mentor_email = '';
         await placement.save();
 
         console.log(`✅  UPDATED Mentor Email to: ${placement.mentor_email}`);
