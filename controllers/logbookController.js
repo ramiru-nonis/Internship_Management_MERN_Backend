@@ -2,6 +2,8 @@ const Logbook = require('../models/Logbook');
 const User = require('../models/User');
 const Notification = require('../models/Notification');
 const sendEmail = require('../utils/sendEmail');
+const Student = require('../models/Student');
+const PlacementForm = require('../models/PlacementForm');
 
 // Get Logbook for a specific month
 exports.getLogbook = async (req, res) => {
@@ -125,13 +127,12 @@ exports.submitLogbook = async (req, res) => {
             console.error("[DEBUG] Missing mentorEmail in request body and placement record");
             return res.status(400).json({ message: "Mentor email is missing. Please ensure your Placement Form is submitted." });
         }
-        const Student = require('../models/Student'); // Import Student model
 
-        const logbook = await Logbook.findById(logbookId).populate('studentId');
-        if (!logbook) return res.status(404).json({ message: "Logbook not found" });
+        const logbookPayload = await Logbook.findById(logbookId).populate('studentId');
+        if (!logbookPayload) return res.status(404).json({ message: "Logbook not found" });
 
         // Fetch Student Profile to get Names
-        const studentProfile = await Student.findOne({ user: logbook.studentId._id });
+        const studentProfile = await Student.findOne({ user: logbookPayload.studentId._id });
         const studentName = studentProfile
             ? `${studentProfile.first_name} ${studentProfile.last_name}`
             : "Student";
