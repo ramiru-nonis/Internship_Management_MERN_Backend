@@ -205,12 +205,35 @@ exports.handleMentorActionLink = async (req, res) => {
         logbook.status = status;
         await logbook.save();
 
-        // Notify Student
+        // Notify Student (In-App)
         await Notification.create({
             recipient: logbook.studentId,
             message: `Your logbook for Month ${logbook.month} was ${status} by your mentor.`,
             type: status === 'Approved' ? 'success' : 'error'
         });
+
+        // Notify Student (Email)
+        try {
+            const studentUser = await User.findById(logbook.studentId);
+            if (studentUser && studentUser.email) {
+                await sendEmail({
+                    email: studentUser.email,
+                    subject: `Logbook ${status} by Mentor`,
+                    message: `
+                        <div style="font-family: Arial, sans-serif; padding: 20px;">
+                            <h2>Logbook Update</h2>
+                            <p>Your logbook for <strong>Month ${logbook.month} / ${logbook.year}</strong> has been <strong>${status}</strong> by your mentor.</p>
+                            <p>Please check your dashboard for more details.</p>
+                            ${status === 'Rejected' ? '<p>You may now edit your entries and resubmit.</p>' : ''}
+                        </div>
+                    `,
+                    isHtml: true
+                });
+            }
+        } catch (emailError) {
+            console.error("Error sending student notification email:", emailError);
+            // Don't fail the request if email fails, just log it
+        }
 
         // Nice Success Page
         const color = status === 'Approved' ? '#28a745' : '#dc3545';
