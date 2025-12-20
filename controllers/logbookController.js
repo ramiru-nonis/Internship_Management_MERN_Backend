@@ -100,7 +100,8 @@ exports.saveLogbookEntry = async (req, res) => {
 exports.submitLogbook = async (req, res) => {
     try {
         console.log("[DEBUG] submitLogbook called with body:", req.body);
-        let { logbookId, mentorEmail } = req.body;
+        let { logbookId } = req.body;
+        let mentorEmail = null; // FORCE NULL: We will ONLY take it from the database below
 
         // STRICT: Always fetch from Placement Record to ensure source of truth
         console.log("[DEBUG] Fetching strictly from Placement Record for Logbook:", logbookId);
