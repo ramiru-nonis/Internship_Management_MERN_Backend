@@ -6,18 +6,14 @@ const sendEmail = async (options) => {
     // Create a transporter
     // Create a transporter
     // MailSender SMTP Configuration (Defaults to MailSender if env vars missing)
-    const port = process.env.SMTP_PORT || 587;
-
+    // Use 'gmail' service preset (Handling Port 465/587 automatically)
     const transporter = nodemailer.createTransport({
-        host: process.env.SMTP_HOST || 'smtp.gmail.com',
-        port: port,
-        secure: port == 465, // true for 465, false for other ports
+        service: 'gmail',
         auth: {
             user: process.env.EMAIL_USERNAME,
             pass: process.env.EMAIL_PASSWORD
         },
-        connectionTimeout: 10000, // 10 seconds
-        greetingTimeout: 5000     // 5 seconds
+        connectionTimeout: 10000
     });
 
     // Define email options
