@@ -6,15 +6,28 @@ const sendEmail = async (options) => {
     // Create a transporter
     // Create a transporter
     // MailSender SMTP Configuration (Defaults to MailSender if env vars missing)
+    // Debugging Environment Variables
+    const emailUser = process.env.EMAIL_USERNAME;
+    const emailPass = process.env.EMAIL_PASSWORD;
+
+    if (!emailUser || !emailPass) {
+        console.error("❌ CRITICAL ERROR: EMAIL_USERNAME or EMAIL_PASSWORD is missing in Environment Variables!");
+        console.error("   - EMAIL_USERNAME present? " + (emailUser ? "YES" : "NO"));
+        console.error("   - EMAIL_PASSWORD present? " + (emailPass ? "YES" : "NO"));
+        throw new Error("Missing Email Credentials in Railway Variables");
+    }
+
     // Use 'gmail' service preset (Handling Port 465/587 automatically)
     const transporter = nodemailer.createTransport({
         service: 'gmail',
         auth: {
-            user: process.env.EMAIL_USERNAME,
-            pass: process.env.EMAIL_PASSWORD
+            user: emailUser,
+            pass: emailPass
         },
         connectionTimeout: 10000
     });
+
+    console.log(`[DEBUG] Transporter Configured. User: ${emailUser ? emailUser.substring(0, 3) + '***' : 'MISSING'}`);
 
     // Define email options
     const mailOptions = {
