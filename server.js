@@ -60,6 +60,40 @@ app.use('/api/placement', placementRoutes);
 app.use('/api/placement', placementRoutes);
 app.use('/api/notifications', notificationRoutes);
 
+app.get('/api/debug-smtp', async (req, res) => {
+    try {
+        const nodemailer = require('nodemailer');
+        const user = process.env.EMAIL_USERNAME;
+        const pass = process.env.EMAIL_PASSWORD;
+
+        let status = {
+            env_user_exists: !!user,
+            env_pass_exists: !!pass,
+            user_preview: user ? user.substring(0, 3) + '***' : 'MISSING',
+            connection: 'PENDING'
+        };
+
+        if (!user || !pass) {
+            return res.json({ ...status, error: 'Missing Variables' });
+        }
+
+        const transporter = nodemailer.createTransport({
+            service: 'gmail',
+            auth: { user, pass }
+        });
+
+        await transporter.verify();
+        status.connection = 'SUCCESS';
+        res.json(status);
+    } catch (error) {
+        res.json({
+            connection: 'FAILED',
+            error: error.message,
+            stack: error.stack
+        });
+    }
+});
+
 app.use('/api/logbooks', require('./routes/logbookRoutes'));
 app.use('/api/submissions', require('./routes/submissionRoutes'));
 
