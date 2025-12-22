@@ -189,7 +189,7 @@ exports.submitLogbook = async (req, res) => {
             isHtml: true
         });
 
-        res.status(200).json({ message: "Submitted successfully", logbook });
+        res.status(200).json({ message: "Submitted successfully", logbook, mentorEmail });
 
     } catch (error) {
         console.error("Error submitting logbook:", error);
