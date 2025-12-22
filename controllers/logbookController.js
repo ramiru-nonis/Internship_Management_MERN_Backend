@@ -139,11 +139,9 @@ exports.submitLogbook = async (req, res) => {
         await logbook.save();
 
         // Send Email
-        const backendUrl = process.env.BACKEND_URL || `${req.protocol}://${req.get('host')}`;
-        // Ensure backendUrl doesn't have trailing slash if we add one, or just join carefully.
-        // req.get('host') gives host:port. protocol gives http.
-        const approveLink = `${backendUrl}/api/logbooks/action/${logbook._id}/Approved`;
-        const rejectLink = `${backendUrl}/api/logbooks/action/${logbook._id}/Rejected`;
+        const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+        const approveLink = `${frontendUrl}/verify-logbook?id=${logbook._id}&status=Approved`;
+        const rejectLink = `${frontendUrl}/verify-logbook?id=${logbook._id}&status=Rejected`;
 
         // Generate HTML Table
         const rows = logbook.weeks.sort((a, b) => a.weekNumber - b.weekNumber).map(w => `
@@ -242,21 +240,7 @@ exports.handleMentorActionLink = async (req, res) => {
             // Don't fail the request if email fails, just log it
         }
 
-        // Nice Success Page
-        const color = status === 'Approved' ? '#28a745' : '#dc3545';
-        const icon = status === 'Approved' ? '✅' : '❌';
-
-        const html = `
-            <div style="font-family: Arial, sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; background-color: #f8f9fa;">
-                <div style="text-align: center; padding: 40px; background: white; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
-                    <div style="font-size: 64px; margin-bottom: 20px;">${icon}</div>
-                    <h1 style="color: ${color}; margin: 0 0 10px 0;">Successfully ${status}</h1>
-                    <p style="color: #666; margin: 0;">The student has been notified of your decision.</p>
-                </div>
-            </div>
-        `;
-
-        res.send(html);
+        res.status(200).json({ message: `Logbook ${status} successfully`, status });
 
     } catch (error) {
         console.error("Action error:", error);
