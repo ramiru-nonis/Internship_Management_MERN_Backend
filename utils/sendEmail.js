@@ -4,9 +4,9 @@ const sendEmail = async (options) => {
 
     // Create Transporter
     const transporter = nodemailer.createTransport({
-        host: process.env.SMTP_HOST,
-        port: process.env.SMTP_PORT,
-        secure: false, // true for 465, false for other ports
+        host: process.env.SMTP_HOST || 'smtp.gmail.com',
+        port: 465, // Force Port 465 for SSL (Railway often blocks 587)
+        secure: true, // Must be true for 465
         auth: {
             user: process.env.EMAIL_USERNAME,
             pass: process.env.EMAIL_PASSWORD,
