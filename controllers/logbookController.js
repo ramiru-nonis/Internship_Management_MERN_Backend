@@ -38,6 +38,23 @@ exports.saveLogbookEntry = async (req, res) => {
         const yearNum = parseInt(year);
         const weekNum = parseInt(weekNumber);
 
+        // --- SEQUENTIAL LOGIC CHECK ---
+        // If trying to save Month X (where X > 1), Month X-1 must be at least SUBMITTED (Pending or Approved)
+        if (monthNum > 1) {
+            const prevMonthLogbook = await Logbook.findOne({
+                studentId,
+                month: monthNum - 1,
+                year: yearNum
+            });
+
+            // If previous month doesn't exist OR is still in Draft state, BLOCK this action.
+            if (!prevMonthLogbook || prevMonthLogbook.status === 'Draft') {
+                return res.status(400).json({
+                    message: `You must submit Month ${monthNum - 1} before working on Month ${monthNum}.`
+                });
+            }
+        }
+
         // Find or Create Logbook
         let logbook = await Logbook.findOne({ studentId, month: monthNum, year: yearNum });
 
@@ -54,16 +71,10 @@ exports.saveLogbookEntry = async (req, res) => {
                 month: monthNum,
                 year: yearNum,
                 status: 'Draft', // Default to Draft
-                mentorEmail: mentorEmail || "", // Will be updated on submit or strictly passed
+                mentorEmail: mentorEmail || "",
                 weeks: []
             });
-            // Override status to Draft locally if we want separate status? 
-            // Requirement says: "Pending by default for the student and it should be stored in the logbook table... when student fills all four weeks... click get approval".
-            // Actually, while editing it's effectively a draft. But let's stick to the user's flow: "stored... as summary".
         }
-
-        // Requirements check: "When the student fills all four weeks... and click get approval... stored in logbook history... as pending".
-        // This implies before that it's just saved data.
 
         // Upsert Week Data
         const weekIndex = logbook.weeks.findIndex(w => w.weekNumber === weekNum);
@@ -98,15 +109,16 @@ exports.saveLogbookEntry = async (req, res) => {
 
 // Submit for Approval
 exports.submitLogbook = async (req, res) => {
+    let logbook;
     try {
         console.log("[DEBUG] submitLogbook called with body:", req.body);
         let { logbookId } = req.body;
-        let mentorEmail = null; // FORCE NULL: We will ONLY take it from the database below
+        let mentorEmail = null;
 
         // STRICT: Always fetch from Placement Record to ensure source of truth
         console.log("[DEBUG] Fetching strictly from Placement Record for Logbook:", logbookId);
 
-        const logbook = await Logbook.findById(logbookId).populate('studentId');
+        logbook = await Logbook.findById(logbookId).populate('studentId');
         if (!logbook) return res.status(404).json({ message: "Logbook not found" });
 
         // Logic to get Mentor Email from Placement Form
@@ -133,6 +145,7 @@ exports.submitLogbook = async (req, res) => {
             ? `${studentProfile.first_name} ${studentProfile.last_name}`
             : "Student";
 
+        // 1. OPTIMISTIC UPDATE (Save as Pending first)
         logbook.status = 'Pending';
         logbook.submittedDate = Date.now();
         logbook.mentorEmail = mentorEmail;
@@ -182,18 +195,36 @@ exports.submitLogbook = async (req, res) => {
             </div>
         `;
 
-        await sendEmail({
-            email: mentorEmail,
-            subject: `Logbook Approval Request - ${studentName}`,
-            message,
-            isHtml: true
-        });
+        try {
+            await sendEmail({
+                email: mentorEmail,
+                subject: `Logbook Approval Request - ${studentName}`,
+                message,
+                isHtml: true
+            });
+            console.log("✅ Email sent successfully to mentor.");
 
-        res.status(200).json({ message: "Submitted successfully", logbook, mentorEmail });
+            res.status(200).json({ message: "Submitted successfully", logbook, mentorEmail });
+
+        } catch (emailError) {
+            // 2. REVERT IF EMAIL FAILS
+            console.error("❌ Email failed, reverting logbook status:", emailError);
+            logbook.status = 'Draft'; // Revert
+            await logbook.save();
+
+            return res.status(500).json({
+                message: "Failed to send email to mentor. Submission cancelled. Please try again.",
+                error: emailError.message
+            });
+        }
 
     } catch (error) {
         console.error("Error submitting logbook:", error);
-        // Send specific error message to frontend
+        // If we crashed before email try/catch, ensure we try to revert if possible (though logbook var might be void)
+        if (logbook && logbook.status === 'Pending') {
+            logbook.status = 'Draft';
+            await logbook.save().catch(e => console.log("Failed to revert during crash recovery"));
+        }
         res.status(500).json({ message: `Submission failed: ${error.message}`, error: error.message });
     }
 };
