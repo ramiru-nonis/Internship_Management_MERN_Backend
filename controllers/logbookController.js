@@ -250,8 +250,15 @@ exports.handleMentorActionLink = async (req, res) => {
 
         // Notify Student (Email)
         try {
+            console.log(`[DEBUG] Attempting to notify student logic for logbook: ${id}`);
             const studentUser = await User.findById(logbook.studentId);
-            if (studentUser && studentUser.email) {
+
+            if (!studentUser) {
+                console.log(`[DEBUG] Student User not found for ID: ${logbook.studentId}`);
+            } else if (!studentUser.email) {
+                console.log(`[DEBUG] Student User has no email. User: ${studentUser.username}`);
+            } else {
+                console.log(`[DEBUG] Sending notification to student email: ${studentUser.email}`);
                 await sendEmail({
                     email: studentUser.email,
                     subject: `Logbook ${status} by Mentor`,
@@ -265,9 +272,10 @@ exports.handleMentorActionLink = async (req, res) => {
                     `,
                     isHtml: true
                 });
+                console.log("✅ Student notification email sent.");
             }
         } catch (emailError) {
-            console.error("Error sending student notification email:", emailError);
+            console.error("❌ Error sending student notification email:", emailError);
             // Don't fail the request if email fails, just log it
         }
 
