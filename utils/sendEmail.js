@@ -14,7 +14,7 @@ const sendEmail = async (options) => {
 
     try {
         const { data, error } = await resend.emails.send({
-            from: 'Internship Manager <onboarding@resend.dev>',
+            from: 'NextStep Internship <updates@dulain.dev>',
             to: options.email,
             subject: options.subject,
             html: options.isHtml ? options.message : `<p>${options.message}</p>`,
