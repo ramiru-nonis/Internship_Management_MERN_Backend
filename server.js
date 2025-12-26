@@ -39,8 +39,22 @@ if (!fs.existsSync(profileDir)) fs.mkdirSync(profileDir);
 if (!fs.existsSync(marksheetDir)) fs.mkdirSync(marksheetDir);
 if (!fs.existsSync(presentationDir)) fs.mkdirSync(presentationDir);
 
-app.use('/uploads', express.static(uploadDir));
-app.use('/api/uploads', express.static(uploadDir)); // Also serve at /api/uploads for consistency
+app.use('/uploads', express.static(uploadDir, {
+    setHeaders: (res, filePath) => {
+        if (filePath.endsWith('.pdf')) {
+            res.set('Content-Type', 'application/pdf');
+            res.set('Content-Disposition', 'inline');
+        }
+    }
+}));
+app.use('/api/uploads', express.static(uploadDir, {
+    setHeaders: (res, filePath) => {
+        if (filePath.endsWith('.pdf')) {
+            res.set('Content-Type', 'application/pdf');
+            res.set('Content-Disposition', 'inline');
+        }
+    }
+})); // Also serve at /api/uploads for consistency
 
 const authRoutes = require('./routes/authRoutes');
 const internshipRoutes = require('./routes/internshipRoutes');
