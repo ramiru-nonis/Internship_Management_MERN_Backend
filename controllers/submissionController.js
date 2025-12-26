@@ -42,31 +42,44 @@ exports.uploadPresentation = async (req, res) => {
 
 exports.getAllSubmissions = async (req, res) => {
     try {
+        const Student = require('../models/Student');
+
         // Logbook removed
-        const marksheets = await Marksheet.find().populate('studentId', 'first_name last_name cb_number profile_picture');
-        const presentations = await Presentation.find().populate('studentId', 'first_name last_name cb_number profile_picture');
+        const marksheets = await Marksheet.find().populate('studentId');
+        const presentations = await Presentation.find().populate('studentId');
+
+        // Extract User IDs to fetch Student Profiles
+        const userIds = [
+            ...marksheets.map(m => m.studentId?._id),
+            ...presentations.map(p => p.studentId?._id)
+        ].filter(id => id);
+
+        // Fetch Student Profiles
+        const students = await Student.find({ user: { $in: userIds } });
+        const studentMap = {};
+        students.forEach(s => {
+            if (s.user) studentMap[s.user.toString()] = s;
+        });
+
+        const mapSubmission = (item, type) => {
+            const user = item.studentId;
+            const student = user ? studentMap[user._id.toString()] : null;
+
+            return {
+                id: item._id,
+                type: type,
+                name: student ? `${student.first_name} ${student.last_name}` : (user?.username || "Unknown Student"),
+                cbNumber: student?.cb_number || "N/A",
+                profilePicture: student?.profile_picture || null,
+                status: 'Submitted',
+                date: item.submittedDate,
+                fileUrl: item.fileUrl
+            };
+        };
 
         const combined = [
-            ...marksheets.map(m => ({
-                id: m._id,
-                type: 'Marksheet',
-                name: m.studentId ? `${m.studentId.first_name} ${m.studentId.last_name}` : "Unknown Student",
-                cbNumber: m.studentId?.cb_number || "N/A",
-                profilePicture: m.studentId?.profile_picture || null,
-                status: 'Submitted',
-                date: m.submittedDate,
-                fileUrl: m.fileUrl
-            })),
-            ...presentations.map(p => ({
-                id: p._id,
-                type: 'Exit Presentation',
-                name: p.studentId ? `${p.studentId.first_name} ${p.studentId.last_name}` : "Unknown Student",
-                cbNumber: p.studentId?.cb_number || "N/A",
-                profilePicture: p.studentId?.profile_picture || null,
-                status: 'Submitted',
-                date: p.submittedDate,
-                fileUrl: p.fileUrl
-            }))
+            ...marksheets.map(m => mapSubmission(m, 'Marksheet')),
+            ...presentations.map(p => mapSubmission(p, 'Exit Presentation'))
         ];
 
         res.status(200).json(combined);

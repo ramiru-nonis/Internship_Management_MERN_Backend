@@ -3,7 +3,7 @@ const mongoose = require('mongoose');
 const marksheetSchema = new mongoose.Schema({
     studentId: {
         type: mongoose.Schema.Types.ObjectId,
-        ref: 'Student',
+        ref: 'User',
         required: true
     },
     fileUrl: {
