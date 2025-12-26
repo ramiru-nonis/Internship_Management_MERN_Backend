@@ -19,8 +19,8 @@ const storage = new CloudinaryStorage({
         if (file.fieldname === 'cv') {
             folderName += '/cvs';
             // PDFs are often treated as 'raw' or 'image' (if converting) in Cloudinary
-            // 'auto' usually works best to let Cloudinary decide and serve correct headers
-            resourceType = 'auto';
+            // 'raw' prevents 401 errors by ignoring image transformation limits
+            resourceType = 'raw';
         } else if (file.fieldname === 'profile_picture') {
             folderName += '/profiles';
             resourceType = 'image';
