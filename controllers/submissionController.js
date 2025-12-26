@@ -43,15 +43,16 @@ exports.uploadPresentation = async (req, res) => {
 exports.getAllSubmissions = async (req, res) => {
     try {
         // Logbook removed
-        const marksheets = await Marksheet.find().populate('studentId', 'firstName lastName cbNumber');
-        const presentations = await Presentation.find().populate('studentId', 'firstName lastName cbNumber');
+        const marksheets = await Marksheet.find().populate('studentId', 'first_name last_name cb_number profile_picture');
+        const presentations = await Presentation.find().populate('studentId', 'first_name last_name cb_number profile_picture');
 
         const combined = [
             ...marksheets.map(m => ({
                 id: m._id,
                 type: 'Marksheet',
-                name: m.studentId ? `${m.studentId.firstName} ${m.studentId.lastName}` : "Unknown Student",
-                cbNumber: m.studentId?.cbNumber || "N/A",
+                name: m.studentId ? `${m.studentId.first_name} ${m.studentId.last_name}` : "Unknown Student",
+                cbNumber: m.studentId?.cb_number || "N/A",
+                profilePicture: m.studentId?.profile_picture || null,
                 status: 'Submitted',
                 date: m.submittedDate,
                 fileUrl: m.fileUrl
@@ -59,8 +60,9 @@ exports.getAllSubmissions = async (req, res) => {
             ...presentations.map(p => ({
                 id: p._id,
                 type: 'Exit Presentation',
-                name: p.studentId ? `${p.studentId.firstName} ${p.studentId.lastName}` : "Unknown Student",
-                cbNumber: p.studentId?.cbNumber || "N/A",
+                name: p.studentId ? `${p.studentId.first_name} ${p.studentId.last_name}` : "Unknown Student",
+                cbNumber: p.studentId?.cb_number || "N/A",
+                profilePicture: p.studentId?.profile_picture || null,
                 status: 'Submitted',
                 date: p.submittedDate,
                 fileUrl: p.fileUrl
