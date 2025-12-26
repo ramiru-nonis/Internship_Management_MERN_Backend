@@ -10,6 +10,7 @@ router.post('/entry', logbookController.saveLogbookEntry);
 router.post('/submit', logbookController.submitLogbook);
 // router.post('/submit-all', logbookController.submitAllLogbooks);
 router.get('/history/:studentId', logbookController.getHistory);
-router.get('/action/:id/:status', logbookController.handleMentorActionLink);
+router.get('/action/:id/:status', logbookController.handleMentorActionLink); // Legacy/GET link support
+router.post('/action', logbookController.handleMentorActionLink); // New POST support with feedback
 
 module.exports = router;

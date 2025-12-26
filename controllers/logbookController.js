@@ -230,15 +230,22 @@ exports.submitLogbook = async (req, res) => {
 };
 
 // Handle Mentor Action
+// Handle Mentor Action (Supports GET for legacy/backward compat, but mostly POST now)
 exports.handleMentorActionLink = async (req, res) => {
     try {
-        const { id, status } = req.params;
+        // Support both params (GET) and body (POST)
+        const id = req.params.id || req.body.logbookId;
+        const status = req.params.status || req.body.status;
+        const feedback = req.body.feedback || "";
+
+        if (!id || !status) return res.status(400).send("Missing parameters");
         if (!['Approved', 'Rejected'].includes(status)) return res.status(400).send("Invalid status");
 
         const logbook = await Logbook.findById(id);
         if (!logbook) return res.status(404).send("Logbook not found");
 
         logbook.status = status;
+        if (feedback) logbook.mentorComments = feedback;
         await logbook.save();
 
         // Notify Student (In-App)
@@ -259,6 +266,17 @@ exports.handleMentorActionLink = async (req, res) => {
                 console.log(`[DEBUG] Student User has no email. User: ${studentUser.username}`);
             } else {
                 console.log(`[DEBUG] Sending notification to student email: ${studentUser.email}`);
+
+                let feedbackHtml = '';
+                if (feedback) {
+                    feedbackHtml = `
+                        <div style="background-color: #f9f9f9; padding: 15px; border-left: 4px solid #007bff; margin: 20px 0;">
+                            <strong>Mentor Feedback:</strong><br/>
+                            <p style="margin-top: 5px; font-style: italic;">"${feedback}"</p>
+                        </div>
+                    `;
+                }
+
                 await sendEmail({
                     email: studentUser.email,
                     subject: `Logbook ${status} by Mentor`,
@@ -266,6 +284,7 @@ exports.handleMentorActionLink = async (req, res) => {
                         <div style="font-family: Arial, sans-serif; padding: 20px;">
                             <h2>Logbook Update</h2>
                             <p>Your logbook for <strong>Month ${logbook.month} / ${logbook.year}</strong> has been <strong>${status}</strong> by your mentor.</p>
+                            ${feedbackHtml}
                             <p>Please check your dashboard for more details.</p>
                             ${status === 'Rejected' ? '<p>You may now edit your entries and resubmit.</p>' : ''}
                         </div>
