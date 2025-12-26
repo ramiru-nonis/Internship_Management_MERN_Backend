@@ -238,11 +238,11 @@ exports.handleMentorActionLink = async (req, res) => {
         const status = req.params.status || req.body.status;
         const feedback = req.body.feedback || "";
 
-        if (!id || !status) return res.status(400).send("Missing parameters");
-        if (!['Approved', 'Rejected'].includes(status)) return res.status(400).send("Invalid status");
+        if (!id || !status) return res.status(400).json({ message: "Missing parameters" });
+        if (!['Approved', 'Rejected'].includes(status)) return res.status(400).json({ message: "Invalid status" });
 
         const logbook = await Logbook.findById(id);
-        if (!logbook) return res.status(404).send("Logbook not found");
+        if (!logbook) return res.status(404).json({ message: "Logbook not found" });
 
         logbook.status = status;
         if (feedback) logbook.mentorComments = feedback;
@@ -302,7 +302,7 @@ exports.handleMentorActionLink = async (req, res) => {
 
     } catch (error) {
         console.error("Action error:", error);
-        res.status(500).send("Server Error");
+        res.status(500).json({ message: `Server Error: ${error.message}` });
     }
 };
 
