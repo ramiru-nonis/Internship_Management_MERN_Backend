@@ -24,10 +24,6 @@ const LogbookSchema = new mongoose.Schema({
         type: String,
         required: true
     },
-    mentorComments: {
-        type: String,
-        default: ""
-    },
     submittedDate: {
         type: Date,
         default: Date.now
