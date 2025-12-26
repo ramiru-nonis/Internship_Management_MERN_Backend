@@ -235,9 +235,10 @@ exports.handleMentorActionLink = async (req, res) => {
     console.log("[DEBUG] handleMentorActionLink invoked");
     try {
         // Support both params (GET) and body (POST)
-        const id = req.params.id || req.body.logbookId;
-        const status = req.params.status || req.body.status;
-        const feedback = req.body.feedback || "";
+        const body = req.body || {};
+        const id = req.params.id || body.logbookId;
+        const status = req.params.status || body.status;
+        const feedback = body.feedback || "";
 
         console.log(`[DEBUG] Params - ID: ${id}, Status: ${status}`);
 
