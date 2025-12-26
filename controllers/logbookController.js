@@ -232,28 +232,44 @@ exports.submitLogbook = async (req, res) => {
 // Handle Mentor Action
 // Handle Mentor Action (Supports GET for legacy/backward compat, but mostly POST now)
 exports.handleMentorActionLink = async (req, res) => {
+    console.log("[DEBUG] handleMentorActionLink invoked");
     try {
         // Support both params (GET) and body (POST)
         const id = req.params.id || req.body.logbookId;
         const status = req.params.status || req.body.status;
         const feedback = req.body.feedback || "";
 
+        console.log(`[DEBUG] Params - ID: ${id}, Status: ${status}`);
+
         if (!id || !status) return res.status(400).json({ message: "Missing parameters" });
         if (!['Approved', 'Rejected'].includes(status)) return res.status(400).json({ message: "Invalid status" });
 
         const logbook = await Logbook.findById(id);
+        console.log("[DEBUG] Logbook found:", logbook ? "Yes" : "No");
+
         if (!logbook) return res.status(404).json({ message: "Logbook not found" });
 
         logbook.status = status;
         if (feedback) logbook.mentorComments = feedback;
         await logbook.save();
+        console.log("[DEBUG] Logbook saved with new status");
 
         // Notify Student (In-App)
-        await Notification.create({
-            recipient: logbook.studentId,
-            message: `Your logbook for Month ${logbook.month} was ${status} by your mentor.`,
-            type: status === 'Approved' ? 'success' : 'error'
-        });
+        if (logbook.studentId) {
+            console.log(`[DEBUG] Notifying student ID: ${logbook.studentId}`);
+            try {
+                await Notification.create({
+                    recipient: logbook.studentId,
+                    message: `Your logbook for Month ${logbook.month} was ${status} by your mentor.`,
+                    type: status === 'Approved' ? 'success' : 'error'
+                });
+                console.log("[DEBUG] Notification created");
+            } catch (notifError) {
+                console.error("[DEBUG] Notification creation failed:", notifError);
+            }
+        } else {
+            console.log("[DEBUG] No studentId in logbook, skipping notification");
+        }
 
         // Notify Student (Email)
         try {
@@ -301,6 +317,7 @@ exports.handleMentorActionLink = async (req, res) => {
         res.status(200).json({ message: `Logbook ${status} successfully`, status });
 
     } catch (error) {
+        console.error("Action error stack:", error.stack);
         console.error("Action error:", error);
         res.status(500).json({ message: `Server Error: ${error.message}` });
     }
