@@ -1,6 +1,9 @@
 const Application = require('../models/Application');
 const Student = require('../models/Student');
 const Internship = require('../models/Internship');
+const User = require('../models/User');
+const Notification = require('../models/Notification');
+const sendEmail = require('../utils/sendEmail');
 
 // @desc    Create application (Apply for internship)
 // @route   POST /api/applications
@@ -67,6 +70,52 @@ const createApplication = async (req, res) => {
         });
 
         await application.save();
+
+        // NOTIFY COORDINATORS
+        const coordinators = await User.find({ role: 'coordinator' });
+
+        // Prepare Email Content
+        const studentName = `${student.first_name} ${student.last_name}`;
+        const internshipTitle = internship.title;
+        const emailSubject = `New Application from ${studentName}`;
+        const emailMessage = `
+            <div style="font-family: Arial, sans-serif; padding: 20px;">
+                <h2>New Internship Application</h2>
+                <p><strong>Student:</strong> ${studentName} (${student.reg_no || 'No Reg No'})</p>
+                <p><strong>Applying For:</strong> ${internshipTitle}</p>
+                <p><strong>Application Type:</strong> ${applyType === 'custom_cv' ? 'Custom CV' : 'Profile CV'}</p>
+                <p>Please log in to the portal to review this application.</p>
+                <a href="${process.env.FRONTEND_URL || 'http://localhost:3000'}/coordinator/applications" style="background-color: #007bff; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block; margin-top: 10px;">View Applications</a>
+            </div>
+        `;
+
+        // Send Notifications Loop
+        for (const coord of coordinators) {
+            // 1. In-App Notification
+            await Notification.create({
+                recipient: coord._id,
+                message: `New Application: ${studentName} applied for ${internshipTitle}`,
+                type: 'info',
+                relatedId: application._id,
+                relatedModel: 'Application'
+            });
+
+            // 2. Email Notification
+            if (coord.email) {
+                try {
+                    await sendEmail({
+                        email: coord.email,
+                        subject: emailSubject,
+                        message: emailMessage,
+                        isHtml: true
+                    });
+                    console.log(`[Notification] Sent email to coordinator: ${coord.email}`);
+                } catch (emailErr) {
+                    console.error(`[Notification] Failed to send email to coordinator ${coord.email}:`, emailErr.message);
+                    // Continue loop even if one email fails
+                }
+            }
+        }
 
         res.status(201).json(application);
     } catch (error) {
