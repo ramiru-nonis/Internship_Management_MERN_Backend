@@ -28,11 +28,26 @@ exports.uploadPresentation = async (req, res) => {
 
         const { studentId } = req.body;
         const fileUrl = `/uploads/presentation/${req.file.filename}`;
+        const User = require('../models/User'); // Lazy load
+        const Notification = require('../models/Notification');
+        const Student = require('../models/Student');
 
         const presentation = await Presentation.create({
             studentId,
             fileUrl
         });
+
+        // Notify Coordinator
+        const coordinator = await User.findOne({ role: 'coordinator' });
+        const student = await Student.findOne({ user: studentId });
+
+        if (coordinator && student) {
+            await Notification.create({
+                recipient: coordinator._id,
+                message: `Student ${student.first_name} ${student.last_name} (${student.cb_number}) has uploaded their Final Exit Presentation.`,
+                type: 'info'
+            });
+        }
 
         res.status(201).json({ message: 'Presentation uploaded', presentation });
     } catch (error) {
