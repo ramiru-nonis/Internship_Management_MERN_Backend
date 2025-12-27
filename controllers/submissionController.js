@@ -184,6 +184,22 @@ exports.notifySubmission = async (req, res) => {
         res.status(200).json({ message: 'Coordinator notified and status updated to Completed.' });
     } catch (error) {
         console.error(error);
-        res.status(500).json({ message: 'Error notifying coordinator', error });
-    }
-};
+
+        exports.getStudentSubmissions = async (req, res) => {
+            try {
+                const { studentId } = req.params;
+                const Marksheet = require('../models/Marksheet');
+                const Presentation = require('../models/Presentation');
+
+                const marksheet = await Marksheet.findOne({ studentId });
+                const presentation = await Presentation.findOne({ studentId });
+
+                res.status(200).json({
+                    marksheet: marksheet || null,
+                    presentation: presentation || null
+                });
+            } catch (error) {
+                res.status(500).json({ message: 'Error fetching student submissions', error });
+            }
+        };
+
