@@ -27,6 +27,16 @@ exports.getLogbook = async (req, res) => {
     }
 };
 
+exports.getLogbookById = async (req, res) => {
+    try {
+        const logbook = await Logbook.findById(req.params.id).populate('studentId');
+        if (!logbook) return res.status(404).json({ message: 'Logbook not found' });
+        res.status(200).json(logbook);
+    } catch (error) {
+        res.status(500).json({ message: 'Error fetching logbook', error: error.message });
+    }
+};
+
 // Save Draft (Weekly Entry)
 exports.saveLogbookEntry = async (req, res) => {
     try {

@@ -4,6 +4,8 @@ const Presentation = require('../models/Presentation');
 const fs = require('fs');
 const path = require('path');
 
+const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+
 exports.uploadMarksheet = async (req, res) => {
     try {
         if (!req.file) return res.status(400).json({ message: 'No file uploaded' });
@@ -58,13 +60,15 @@ exports.uploadPresentation = async (req, res) => {
 exports.getAllSubmissions = async (req, res) => {
     try {
         const Student = require('../models/Student');
+        const Logbook = require('../models/Logbook');
 
-        // Logbook removed
+        const logbooks = await Logbook.find({ status: { $ne: 'Draft' } }).populate('studentId');
         const marksheets = await Marksheet.find().populate('studentId');
         const presentations = await Presentation.find().populate('studentId');
 
         // Extract User IDs to fetch Student Profiles
         const userIds = [
+            ...logbooks.map(l => l.studentId?._id),
             ...marksheets.map(m => m.studentId?._id),
             ...presentations.map(p => p.studentId?._id)
         ].filter(id => id);
@@ -86,13 +90,17 @@ exports.getAllSubmissions = async (req, res) => {
                 name: student ? `${student.first_name} ${student.last_name}` : (user?.username || "Unknown Student"),
                 cbNumber: student?.cb_number || "N/A",
                 profilePicture: student?.profile_picture || null,
-                status: 'Submitted',
+                profilePicture: student?.profile_picture || null,
+                status: item.status || 'Submitted',
                 date: item.submittedDate,
-                fileUrl: item.fileUrl
+                fileUrl: item.fileUrl,
+                month: item.month ? `${MONTH_NAMES[item.month - 1]} ${item.year}` : undefined,
+                logbookId: type === 'Logbook' ? item._id : undefined
             };
         };
 
         const combined = [
+            ...logbooks.map(l => mapSubmission(l, 'Logbook')),
             ...marksheets.map(m => mapSubmission(m, 'Marksheet')),
             ...presentations.map(p => mapSubmission(p, 'Exit Presentation'))
         ];
