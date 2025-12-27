@@ -94,6 +94,16 @@ exports.notifySubmission = async (req, res) => {
         const { studentId } = req.body;
         const User = require('../models/User'); // Lazy load or move to top
         const Notification = require('../models/Notification');
+        const Marksheet = require('../models/Marksheet');
+        const Presentation = require('../models/Presentation');
+
+        // Verify that both submissions exist
+        const marksheet = await Marksheet.findOne({ studentId });
+        const presentation = await Presentation.findOne({ studentId });
+
+        if (!marksheet || !presentation) {
+            return res.status(400).json({ message: 'Both marksheet and presentation are required to complete the internship.' });
+        }
 
         const coordinator = await User.findOne({ role: 'coordinator' });
         if (coordinator) {
@@ -112,7 +122,7 @@ exports.notifySubmission = async (req, res) => {
             await student.save();
         }
 
-        res.status(200).json({ message: 'Coordinator notified.' });
+        res.status(200).json({ message: 'Coordinator notified and status updated to Completed.' });
     } catch (error) {
         console.error(error);
         res.status(500).json({ message: 'Error notifying coordinator', error });
