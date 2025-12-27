@@ -64,6 +64,11 @@ const getAllStudents = async (req, res) => {
             query.status = status;
         }
 
+        // Filter by degree
+        if (req.query.degree && req.query.degree !== 'all') {
+            query.degree = req.query.degree;
+        }
+
         // Search by name or CB number
         if (search) {
             query.$or = [
