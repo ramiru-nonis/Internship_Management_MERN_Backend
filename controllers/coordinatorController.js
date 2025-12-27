@@ -55,6 +55,7 @@ const getDashboardStats = async (req, res) => {
 const getAllStudents = async (req, res) => {
     try {
         const { status, search } = req.query;
+        const Presentation = require('../models/Presentation'); // Lazy load
 
         let query = {};
 
@@ -74,9 +75,24 @@ const getAllStudents = async (req, res) => {
 
         const students = await Student.find(query)
             .populate('user', 'email')
-            .sort({ createdAt: -1 });
+            .sort({ createdAt: -1 })
+            .lean(); // Convert to plain object to attach new properties
 
-        res.json(students);
+        // Attach presentation status to each student
+        const studentIds = students.map(s => s.user._id);
+        const presentations = await Presentation.find({ studentId: { $in: studentIds } });
+
+        const presentationMap = {};
+        presentations.forEach(p => {
+            presentationMap[p.studentId.toString()] = true;
+        });
+
+        const studentsWithStats = students.map(student => ({
+            ...student,
+            hasPresentation: !!presentationMap[student.user._id.toString()]
+        }));
+
+        res.json(studentsWithStats);
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
