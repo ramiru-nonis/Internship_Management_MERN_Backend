@@ -95,7 +95,8 @@ exports.getAllSubmissions = async (req, res) => {
                 date: item.submittedDate,
                 fileUrl: item.fileUrl,
                 month: item.month ? `${MONTH_NAMES[item.month - 1]} ${item.year}` : undefined,
-                logbookId: type === 'Logbook' ? item._id : undefined
+                logbookId: type === 'Logbook' ? item._id : undefined,
+                studentId: user?._id // Include user ID for history fetching
             };
         };
 
