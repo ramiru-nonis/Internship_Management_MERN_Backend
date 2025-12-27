@@ -53,6 +53,10 @@ const placementFormSchema = mongoose.Schema({
         type: Date,
         default: Date.now,
     },
+    oneMonthNotificationSent: {
+        type: Boolean,
+        default: false,
+    },
 }, {
     timestamps: true,
 });
