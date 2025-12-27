@@ -11,7 +11,14 @@ exports.uploadMarksheet = async (req, res) => {
         if (!req.file) return res.status(400).json({ message: 'No file uploaded' });
 
         const { studentId } = req.body;
-        const fileUrl = `/uploads/marksheet/${req.file.filename}`;
+
+        // Determine file URL based on storage type (Local vs Cloudinary)
+        let fileUrl;
+        if (req.file.path && (req.file.path.startsWith('http') || req.file.path.startsWith('https'))) {
+            fileUrl = req.file.path;
+        } else {
+            fileUrl = `/uploads/marksheet/${req.file.filename}`;
+        }
 
         const marksheet = await Marksheet.create({
             studentId,
@@ -29,7 +36,14 @@ exports.uploadPresentation = async (req, res) => {
         if (!req.file) return res.status(400).json({ message: 'No file uploaded' });
 
         const { studentId } = req.body;
-        const fileUrl = `/uploads/presentation/${req.file.filename}`;
+
+        let fileUrl;
+        if (req.file.path && (req.file.path.startsWith('http') || req.file.path.startsWith('https'))) {
+            fileUrl = req.file.path;
+        } else {
+            fileUrl = `/uploads/presentation/${req.file.filename}`;
+        }
+
         const User = require('../models/User'); // Lazy load
         const Notification = require('../models/Notification');
         const Student = require('../models/Student');
