@@ -260,6 +260,14 @@ exports.handleMentorActionLink = async (req, res) => {
 
         if (!logbook) return res.status(404).json({ message: "Logbook not found" });
 
+        // Prevent modifying if already processed
+        if (logbook.status !== 'Pending' && logbook.status !== 'Submitted') {
+            // Allow update if it's just 'Submitted' (backward compat), but block if Approved/Rejected
+            if (['Approved', 'Rejected'].includes(logbook.status)) {
+                return res.status(400).json({ message: `This logbook has already been ${logbook.status}.` });
+            }
+        }
+
         logbook.status = status;
         if (feedback) logbook.mentorComments = feedback;
         await logbook.save();
