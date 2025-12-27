@@ -48,7 +48,7 @@ const studentSchema = mongoose.Schema({
     }],
     status: {
         type: String,
-        enum: ['non-intern', 'intern', 'approved', 'hired', 'not hired'],
+        enum: ['non-intern', 'intern', 'Completed', 'approved', 'hired', 'not hired'], // Expanded enum to support transition
         default: 'non-intern',
     },
 }, {

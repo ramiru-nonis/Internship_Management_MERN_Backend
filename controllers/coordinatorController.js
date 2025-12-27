@@ -11,9 +11,9 @@ const getDashboardStats = async (req, res) => {
         // Total students
         const totalStudents = await Student.countDocuments();
 
-        // Students with internships (Hired or Completed)
+        // Students with internships (Intern or Completed)
         const studentsWithInternships = await Student.countDocuments({
-            status: { $in: ['Hired', 'Completed'] }
+            status: { $in: ['intern', 'Completed', 'hired'] } // hired kept for legacy compatibility
         });
 
         // Total job posts
@@ -24,9 +24,8 @@ const getDashboardStats = async (req, res) => {
 
         // Status breakdown
         const statusBreakdown = {
-            notApplied: await Student.countDocuments({ status: 'Not Applied' }),
-            applied: await Student.countDocuments({ status: 'Applied' }),
-            hired: await Student.countDocuments({ status: 'Hired' }),
+            nonIntern: await Student.countDocuments({ status: 'non-intern' }),
+            intern: await Student.countDocuments({ status: 'intern' }),
             completed: await Student.countDocuments({ status: 'Completed' }),
         };
 

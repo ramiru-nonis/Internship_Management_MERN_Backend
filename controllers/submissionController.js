@@ -104,6 +104,14 @@ exports.notifySubmission = async (req, res) => {
             });
         }
 
+        // Update Student Status to 'Completed'
+        const Student = require('../models/Student');
+        const student = await Student.findOne({ user: studentId });
+        if (student) {
+            student.status = 'Completed';
+            await student.save();
+        }
+
         res.status(200).json({ message: 'Coordinator notified.' });
     } catch (error) {
         console.error(error);
