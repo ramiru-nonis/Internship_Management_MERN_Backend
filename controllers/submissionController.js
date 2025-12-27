@@ -100,8 +100,29 @@ exports.getAllSubmissions = async (req, res) => {
             };
         };
 
+        // Deduplicate Logbooks: Show only the latest submission per student
+        const uniqueLogbooks = [];
+        const studentLogbookMap = new Map();
+
+        logbooks.forEach(lb => {
+            const sid = lb.studentId?._id?.toString();
+            if (!sid) return;
+
+            if (!studentLogbookMap.has(sid)) {
+                studentLogbookMap.set(sid, lb);
+            } else {
+                // Check if current lb is newer than stored lb
+                const stored = studentLogbookMap.get(sid);
+                if (lb.year > stored.year || (lb.year === stored.year && lb.month > stored.month)) {
+                    studentLogbookMap.set(sid, lb);
+                }
+            }
+        });
+
+        studentLogbookMap.forEach(lb => uniqueLogbooks.push(lb));
+
         const combined = [
-            ...logbooks.map(l => mapSubmission(l, 'Logbook')),
+            ...uniqueLogbooks.map(l => mapSubmission(l, 'Logbook')),
             ...marksheets.map(m => mapSubmission(m, 'Marksheet')),
             ...presentations.map(p => mapSubmission(p, 'Exit Presentation'))
         ];
