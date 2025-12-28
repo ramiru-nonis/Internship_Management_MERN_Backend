@@ -18,14 +18,20 @@ const isLogbookRequirementsMet = async (studentId) => {
 
 exports.uploadMarksheet = async (req, res) => {
     try {
-        if (!req.file) return res.status(400).json({ message: 'No file uploaded' });
-
         const { studentId } = req.body;
+
+        if (!req.file) return res.status(400).json({ message: 'No file uploaded' });
 
         // Enforce Logbook Completion
         const logbookComplete = await isLogbookRequirementsMet(studentId);
         if (!logbookComplete) {
             return res.status(403).json({ message: "Final submission not allowed. All logbooks must be Approved." });
+        }
+
+        // Check attempt limit
+        const existingCount = await Marksheet.countDocuments({ studentId });
+        if (existingCount >= 3) {
+            return res.status(403).json({ message: "Maximum submission attempts (3) reached for Marksheet." });
         }
 
         // Determine file URL based on storage type (Local vs Cloudinary)
@@ -49,14 +55,20 @@ exports.uploadMarksheet = async (req, res) => {
 
 exports.uploadPresentation = async (req, res) => {
     try {
-        if (!req.file) return res.status(400).json({ message: 'No file uploaded' });
-
         const { studentId } = req.body;
+
+        if (!req.file) return res.status(400).json({ message: 'No file uploaded' });
 
         // Enforce Logbook Completion
         const logbookComplete = await isLogbookRequirementsMet(studentId);
         if (!logbookComplete) {
             return res.status(403).json({ message: "Final submission not allowed. All logbooks must be Approved." });
+        }
+
+        // Check attempt limit
+        const existingCount = await Presentation.countDocuments({ studentId });
+        if (existingCount >= 3) {
+            return res.status(403).json({ message: "Maximum submission attempts (3) reached for Presentation." });
         }
 
         let fileUrl;
@@ -82,7 +94,7 @@ exports.uploadPresentation = async (req, res) => {
         if (coordinator && student) {
             await Notification.create({
                 recipient: coordinator._id,
-                message: `Student ${student.first_name} ${student.last_name} (${student.cb_number}) has uploaded their Final Exit Presentation.`,
+                message: `Student ${student.first_name} ${student.last_name} (${student.cb_number}) has uploaded their Final Exit Presentation (Attempt ${existingCount + 1}).`,
                 type: 'info'
             });
         }
@@ -99,14 +111,36 @@ exports.getAllSubmissions = async (req, res) => {
         const Logbook = require('../models/Logbook');
 
         const logbooks = await Logbook.find({ status: { $ne: 'Draft' } }).populate('studentId');
-        const marksheets = await Marksheet.find().populate('studentId');
-        const presentations = await Presentation.find().populate('studentId');
+        // Fetch ALL submissions
+        const allMarksheets = await Marksheet.find().populate('studentId').sort({ createdAt: -1 });
+        const allPresentations = await Presentation.find().populate('studentId').sort({ createdAt: -1 });
+
+        // Filter to keep only the LATEST submission per student for Marksheet & Presentation
+        const latestMarksheets = [];
+        const seenMarksheetStudents = new Set();
+        for (const m of allMarksheets) {
+            const sid = m.studentId?._id?.toString();
+            if (sid && !seenMarksheetStudents.has(sid)) {
+                latestMarksheets.push(m);
+                seenMarksheetStudents.add(sid);
+            }
+        }
+
+        const latestPresentations = [];
+        const seenPresentationStudents = new Set();
+        for (const p of allPresentations) {
+            const sid = p.studentId?._id?.toString();
+            if (sid && !seenPresentationStudents.has(sid)) {
+                latestPresentations.push(p);
+                seenPresentationStudents.add(sid);
+            }
+        }
 
         // Extract User IDs to fetch Student Profiles
         const userIds = [
             ...logbooks.map(l => l.studentId?._id),
-            ...marksheets.map(m => m.studentId?._id),
-            ...presentations.map(p => p.studentId?._id)
+            ...latestMarksheets.map(m => m.studentId?._id),
+            ...latestPresentations.map(p => p.studentId?._id)
         ].filter(id => id);
 
         // Fetch Student Profiles
@@ -126,9 +160,8 @@ exports.getAllSubmissions = async (req, res) => {
                 name: student ? `${student.first_name} ${student.last_name}` : (user?.username || "Unknown Student"),
                 cbNumber: student?.cb_number || "N/A",
                 profilePicture: student?.profile_picture || null,
-                profilePicture: student?.profile_picture || null,
                 status: item.status || 'Submitted',
-                date: item.submittedDate,
+                date: item.submittedDate || item.createdAt, // Fallback to createdAt
                 fileUrl: item.fileUrl,
                 month: item.month ? `${MONTH_NAMES[item.month - 1]} ${item.year}` : undefined,
                 logbookId: type === 'Logbook' ? item._id : undefined,
@@ -159,8 +192,8 @@ exports.getAllSubmissions = async (req, res) => {
 
         const combined = [
             ...uniqueLogbooks.map(l => mapSubmission(l, 'Logbook')),
-            ...marksheets.map(m => mapSubmission(m, 'Marksheet')),
-            ...presentations.map(p => mapSubmission(p, 'Exit Presentation'))
+            ...latestMarksheets.map(m => mapSubmission(m, 'Marksheet')),
+            ...latestPresentations.map(p => mapSubmission(p, 'Exit Presentation'))
         ];
 
         res.status(200).json(combined);
@@ -178,11 +211,11 @@ exports.notifySubmission = async (req, res) => {
         const Marksheet = require('../models/Marksheet');
         const Presentation = require('../models/Presentation');
 
-        // Verify that both submissions exist
-        const marksheet = await Marksheet.findOne({ studentId });
-        const presentation = await Presentation.findOne({ studentId });
+        // Verify that both submissions exist (check for at least one of each)
+        const marksheetCount = await Marksheet.countDocuments({ studentId });
+        const presentationCount = await Presentation.countDocuments({ studentId });
 
-        if (!marksheet || !presentation) {
+        if (marksheetCount === 0 || presentationCount === 0) {
             return res.status(400).json({ message: 'Both marksheet and presentation are required to complete the internship.' });
         }
 
@@ -217,22 +250,26 @@ exports.getStudentSubmissions = async (req, res) => {
         const Presentation = require('../models/Presentation');
         const Logbook = require('../models/Logbook');
 
-        const marksheet = await Marksheet.findOne({ studentId });
-        const presentation = await Presentation.findOne({ studentId });
+        // Fetch LATEST Marksheet
+        const marksheet = await Marksheet.findOne({ studentId }).sort({ createdAt: -1 });
+        const marksheetCount = await Marksheet.countDocuments({ studentId });
+
+        // Fetch LATEST Presentation
+        const presentation = await Presentation.findOne({ studentId }).sort({ createdAt: -1 });
+        const presentationCount = await Presentation.countDocuments({ studentId });
 
         // Check Logbook Status
         const logbooks = await Logbook.find({ studentId });
         const totalLogbooks = logbooks.length;
         const approvedLogbooks = logbooks.filter(lb => lb.status === 'Approved').length;
 
-        // Criteria: Must have at least one logbook, and ALL must be Approved.
-        // If 0 logbooks, it's not complete.
-        // If any logbook is Pending/Rejected/Draft, it's not complete.
         const isLogbookComplete = totalLogbooks > 0 && totalLogbooks === approvedLogbooks;
 
         res.status(200).json({
             marksheet: marksheet || null,
+            marksheetCount: marksheetCount,
             presentation: presentation || null,
+            presentationCount: presentationCount,
             logbookStatus: {
                 complete: isLogbookComplete,
                 total: totalLogbooks,
