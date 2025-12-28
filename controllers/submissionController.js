@@ -219,18 +219,19 @@ exports.notifySubmission = async (req, res) => {
             return res.status(400).json({ message: 'Both marksheet and presentation are required to complete the internship.' });
         }
 
+        const Student = require('../models/Student');
+        const student = await Student.findOne({ user: studentId });
+
         const coordinator = await User.findOne({ role: 'coordinator' });
-        if (coordinator) {
+        if (coordinator && student) {
             await Notification.create({
                 recipient: coordinator._id,
-                message: `Student with ID ${studentId} has completed final submission (Marksheet & Presentation).`,
+                message: `Student ${student.first_name} ${student.last_name} (${student.cb_number}) has completed final submission (Marksheet & Presentation).`,
                 type: 'success'
             });
         }
 
         // Update Student Status to 'Completed'
-        const Student = require('../models/Student');
-        const student = await Student.findOne({ user: studentId });
         if (student) {
             student.status = 'Completed';
             await student.save();
