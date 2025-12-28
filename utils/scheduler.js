@@ -41,8 +41,42 @@ const initScheduler = () => {
                     }
                 }
                 console.log(`Notified coordinator about ${expiringPlacements.length} expiring internships.`);
+                // ... existing 1-month logic ...
             } else {
                 console.log('No internships expiring in exactly one month.');
+            }
+
+            // --- 2 Weeks Check (For Student Reminder) ---
+            const twoWeeksFromNow = new Date();
+            twoWeeksFromNow.setDate(today.getDate() + 14);
+
+            const startOfDay2W = new Date(twoWeeksFromNow.setHours(0, 0, 0, 0));
+            const endOfDay2W = new Date(twoWeeksFromNow.setHours(23, 59, 59, 999));
+
+            const expiringInTwoWeeks = await PlacementForm.find({
+                end_date: {
+                    $gte: startOfDay2W,
+                    $lte: endOfDay2W
+                },
+                twoWeekNotificationSent: { $ne: true }
+            }).populate('student');
+
+            if (expiringInTwoWeeks.length > 0) {
+                for (const placement of expiringInTwoWeeks) {
+                    if (placement.student && placement.student.user) {
+                        await Notification.create({
+                            recipient: placement.student.user, // Notify the student user
+                            message: `Reminder: Your internship ends in 2 weeks (on ${placement.end_date.toDateString()}). Please ensure your logbooks are up to date and prepare for your final presentation.`,
+                            type: 'warning'
+                        });
+
+                        placement.twoWeekNotificationSent = true;
+                        await placement.save();
+                        console.log(`Notified student ${placement.student.first_name} about 2-week expiry.`);
+                    }
+                }
+            } else {
+                console.log('No internships expiring in exactly two weeks.');
             }
 
         } catch (error) {

@@ -219,17 +219,4 @@ module.exports = {
     updateStudentStatus,
     getAllApplications,
     getAllPlacementForms,
-    triggerExpirationCheck: async (req, res) => {
-        try {
-            const { checkExpiry } = require('../utils/scheduler');
-            const count = await checkExpiry();
-            res.json({
-                message: 'Expiration check completed successfully',
-                notificationsSent: count
-            });
-        } catch (error) {
-            console.error(error);
-            res.status(500).json({ message: 'Failed to trigger expiry check' });
-        }
-    }
 };

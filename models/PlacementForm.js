@@ -57,6 +57,10 @@ const placementFormSchema = mongoose.Schema({
         type: Boolean,
         default: false,
     },
+    twoWeekNotificationSent: {
+        type: Boolean,
+        default: false,
+    },
 }, {
     timestamps: true,
 });
