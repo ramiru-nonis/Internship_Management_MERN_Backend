@@ -20,5 +20,6 @@ router.put('/students/:id/status', updateStudentStatus);
 router.post('/students/download-cvs', downloadCVs);
 router.get('/applications', getAllApplications);
 router.get('/placements', getAllPlacementForms);
+router.post('/check-expiry', require('../controllers/coordinatorController').triggerExpirationCheck);
 
 module.exports = router;
