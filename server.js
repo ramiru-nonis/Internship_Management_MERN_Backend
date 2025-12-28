@@ -63,6 +63,9 @@ const coordinatorRoutes = require('./routes/coordinatorRoutes');
 const applicationRoutes = require('./routes/applicationRoutes');
 const placementRoutes = require('./routes/placementRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
+const logbookRoutes = require('./routes/logbookRoutes');
+const submissionRoutes = require('./routes/submissionRoutes');
+const aiRoutes = require('./routes/aiRoutes');
 
 // Routes
 app.use('/api/auth', authRoutes);
@@ -73,6 +76,9 @@ app.use('/api/applications', applicationRoutes);
 app.use('/api/placement', placementRoutes);
 app.use('/api/placement', placementRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/logbooks', logbookRoutes);
+app.use('/api/submissions', submissionRoutes);
+app.use('/api/ai', aiRoutes);
 
 app.get('/api/debug-smtp', async (req, res) => {
     try {
