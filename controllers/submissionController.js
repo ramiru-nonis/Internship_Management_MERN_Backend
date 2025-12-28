@@ -193,13 +193,29 @@ exports.getStudentSubmissions = async (req, res) => {
         const { studentId } = req.params;
         const Marksheet = require('../models/Marksheet');
         const Presentation = require('../models/Presentation');
+        const Logbook = require('../models/Logbook');
 
         const marksheet = await Marksheet.findOne({ studentId });
         const presentation = await Presentation.findOne({ studentId });
 
+        // Check Logbook Status
+        const logbooks = await Logbook.find({ studentId });
+        const totalLogbooks = logbooks.length;
+        const approvedLogbooks = logbooks.filter(lb => lb.status === 'Approved').length;
+
+        // Criteria: Must have at least one logbook, and ALL must be Approved.
+        // If 0 logbooks, it's not complete.
+        // If any logbook is Pending/Rejected/Draft, it's not complete.
+        const isLogbookComplete = totalLogbooks > 0 && totalLogbooks === approvedLogbooks;
+
         res.status(200).json({
             marksheet: marksheet || null,
-            presentation: presentation || null
+            presentation: presentation || null,
+            logbookStatus: {
+                complete: isLogbookComplete,
+                total: totalLogbooks,
+                approved: approvedLogbooks
+            }
         });
     } catch (error) {
         res.status(500).json({ message: 'Error fetching student submissions', error });
