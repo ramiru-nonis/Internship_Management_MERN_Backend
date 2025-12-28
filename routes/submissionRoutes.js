@@ -43,6 +43,7 @@ router.post('/marksheet', upload.single('marksheet'), submissionController.uploa
 router.post('/presentation', upload.single('presentation'), submissionController.uploadPresentation);
 router.get('/', submissionController.getAllSubmissions);
 router.post('/notify', submissionController.notifySubmission);
+router.put('/presentation/:id/schedule', submissionController.schedulePresentation);
 router.get('/student/:studentId', submissionController.getStudentSubmissions);
 
 module.exports = router;

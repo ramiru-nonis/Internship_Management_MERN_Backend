@@ -162,6 +162,7 @@ exports.getAllSubmissions = async (req, res) => {
                 profilePicture: student?.profile_picture || null,
                 status: item.status || 'Submitted',
                 date: item.submittedDate || item.createdAt, // Fallback to createdAt
+                scheduledDate: item.scheduledDate || null,
                 fileUrl: item.fileUrl,
                 month: item.month ? `${MONTH_NAMES[item.month - 1]} ${item.year}` : undefined,
                 logbookId: type === 'Logbook' ? item._id : undefined,
@@ -279,6 +280,44 @@ exports.getStudentSubmissions = async (req, res) => {
         });
     } catch (error) {
         res.status(500).json({ message: 'Error fetching student submissions', error });
+    }
+};
+
+exports.schedulePresentation = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { scheduledDate } = req.body;
+
+        if (!scheduledDate) {
+            return res.status(400).json({ message: "Scheduled date is required." });
+        }
+
+        const Presentation = require('../models/Presentation');
+        const Notification = require('../models/Notification');
+        const Student = require('../models/Student');
+
+        const presentation = await Presentation.findById(id);
+        if (!presentation) {
+            return res.status(404).json({ message: "Presentation not found." });
+        }
+
+        presentation.scheduledDate = scheduledDate;
+        await presentation.save();
+
+        // Notify Student
+        const student = await Student.findOne({ user: presentation.studentId });
+        if (student && student.user) {
+            await Notification.create({
+                recipient: student.user,
+                message: `Presentation Scheduled: Your exit presentation has been scheduled for ${new Date(scheduledDate).toLocaleString()}.`,
+                type: 'info'
+            });
+        }
+
+        res.status(200).json({ message: "Presentation scheduled successfully.", presentation });
+    } catch (error) {
+        console.error("Error scheduling presentation:", error);
+        res.status(500).json({ message: "Failed to schedule presentation.", error });
     }
 };
 

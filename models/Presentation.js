@@ -13,6 +13,9 @@ const presentationSchema = new mongoose.Schema({
     submittedDate: {
         type: Date,
         default: Date.now
+    },
+    scheduledDate: {
+        type: Date, // Valid when coordinator assigns time
     }
 }, { timestamps: true });
 
