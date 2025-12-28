@@ -6,11 +6,27 @@ const path = require('path');
 
 const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
+// Helper: Check if all logbooks are approved
+const isLogbookRequirementsMet = async (studentId) => {
+    const Logbook = require('../models/Logbook');
+    const logbooks = await Logbook.find({ studentId });
+    const total = logbooks.length;
+    const approved = logbooks.filter(lb => lb.status === 'Approved').length;
+    // Must have at least one logbook, and all must be approved
+    return total > 0 && total === approved;
+};
+
 exports.uploadMarksheet = async (req, res) => {
     try {
         if (!req.file) return res.status(400).json({ message: 'No file uploaded' });
 
         const { studentId } = req.body;
+
+        // Enforce Logbook Completion
+        const logbookComplete = await isLogbookRequirementsMet(studentId);
+        if (!logbookComplete) {
+            return res.status(403).json({ message: "Final submission not allowed. All logbooks must be Approved." });
+        }
 
         // Determine file URL based on storage type (Local vs Cloudinary)
         let fileUrl;
@@ -36,6 +52,12 @@ exports.uploadPresentation = async (req, res) => {
         if (!req.file) return res.status(400).json({ message: 'No file uploaded' });
 
         const { studentId } = req.body;
+
+        // Enforce Logbook Completion
+        const logbookComplete = await isLogbookRequirementsMet(studentId);
+        if (!logbookComplete) {
+            return res.status(403).json({ message: "Final submission not allowed. All logbooks must be Approved." });
+        }
 
         let fileUrl;
         if (req.file.path && (req.file.path.startsWith('http') || req.file.path.startsWith('https'))) {
