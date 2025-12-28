@@ -1,4 +1,3 @@
-```javascript
 const OpenAI = require('openai');
 
 exports.enhanceLogbook = async (req, res) => {
@@ -12,7 +11,7 @@ exports.enhanceLogbook = async (req, res) => {
         // --- MOCK MODE (No API Key) ---
         if (!process.env.OPENAI_API_KEY) {
             console.warn("Missing OPENAI_API_KEY. Returning DYNAMIC mock response.");
-            
+
             // Simulating AI delay
             await new Promise(resolve => setTimeout(resolve, 800)); // Slightly faster
 
@@ -20,9 +19,9 @@ exports.enhanceLogbook = async (req, res) => {
             const verbs = ["Spearheaded", "Orchestrated", "Executed", "Implemented", "Designed", "Optimized", "Refined", "Collaborated on", "Managed"];
             const adverbs = ["successfully", "effectively", "efficiently", "proactively", "strategically", "meticulously"];
             const impacts = ["enhancing system performance", "improving user experience", "reducing latency", "aligning with business goals", "ensuring code quality"];
-            
+
             const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
-            
+
             // Dynamic Generation
             const enhancedText = text.replace(/\./g, '').split(' ')
                 .filter(w => w.length > 3)
@@ -31,15 +30,15 @@ exports.enhanceLogbook = async (req, res) => {
 
             // Generate 3 unique bullet points
             const bullets = [
-                `${ pick(verbs) } the development of ${ enhancedText || 'core features' }, ${ pick(adverbs) } ${ pick(impacts) }.`,
-                `${ pick(verbs) } technical documentation and ${ pick(adverbs) } utilized industry standards to ensure scalability.`,
-                `Demonstrated professional growth by ${ pick(verbs).toLowerCase() } complex tasks within the ${ context || 'project scope' }.`
+                `${pick(verbs)} the development of ${enhancedText || 'core features'}, ${pick(adverbs)} ${pick(impacts)}.`,
+                `${pick(verbs)} technical documentation and ${pick(adverbs)} utilized industry standards to ensure scalability.`,
+                `Demonstrated professional growth by ${pick(verbs).toLowerCase()} complex tasks within the ${context || 'project scope'}.`
             ];
 
-            const stylePrefix = style ? `[${ style } Style]\n` : "";
+            const stylePrefix = style ? `[${style} Style]\n` : "";
 
             return res.status(200).json({
-                activities: `${ stylePrefix }• ${ bullets[0] } \n• ${ bullets[1] } \n• ${ bullets[2] } `,
+                activities: `${stylePrefix}• ${bullets[0]} \n• ${bullets[1]} \n• ${bullets[2]} `,
                 techSkills: "React.js, Node.js, System Architecture, Debugging",
                 softSkills: "Critical Thinking, Adaptability, Cross-functional Collaboration"
             });
@@ -61,7 +60,7 @@ exports.enhanceLogbook = async (req, res) => {
         const completion = await openai.chat.completions.create({
             messages: [
                 { role: "system", content: systemPrompt },
-                { role: "user", content: `Context: ${ context }.Entry: "${text}"` }
+                { role: "user", content: `Context: ${context}.Entry: "${text}"` }
             ],
             model: "gpt-3.5-turbo",
             temperature: 0.7, // Higher creativity
