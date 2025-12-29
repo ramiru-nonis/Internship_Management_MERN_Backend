@@ -22,7 +22,7 @@ const LogbookSchema = new mongoose.Schema({
     },
     mentorEmail: {
         type: String,
-        required: true
+        default: ""
     },
     submittedDate: {
         type: Date,
