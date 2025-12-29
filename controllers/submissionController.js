@@ -76,6 +76,11 @@ exports.uploadPresentation = async (req, res) => {
 
         if (!req.file) return res.status(400).json({ message: 'No file uploaded' });
 
+        if (!req.file.originalname.toLowerCase().endsWith('.pdf')) {
+            return res.status(400).json({ message: "Presentation must be a PDF file to enable offline viewing." });
+        }
+
+
         // Enforce Logbook Completion
         const logbookComplete = await isLogbookRequirementsMet(studentId);
         if (!logbookComplete) {
