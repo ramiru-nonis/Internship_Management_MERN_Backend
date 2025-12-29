@@ -78,39 +78,35 @@ const registerUser = async (req, res) => {
         // If student, create Student profile
         if (user.role === 'student') {
             try {
-                // Handle file paths
-                let cvPath = '';
-                let profilePath = '';
-
-                if (req.files && req.files.cv) {
-                    // Cloudinary returns .path as the secure URL
-                    // Local multer returns .path as the file system path
-                    cvPath = req.files.cv[0].path;
-                    // If local, we need to convert to a URL: "uploads/cv/filename.pdf"
-                    if (process.env.STORAGE_TYPE === 'local') {
-                        // Normalize path separators for Windows
-                        cvPath = cvPath.replace(/\\/g, '/');
-                        // Ensure it starts with uploads/ if not already (it should be)
-                        if (!cvPath.startsWith('http')) {
-                            cvPath = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/api/${cvPath}`;
-                            // NOTE: Ideally server static files via a proper URL. 
-                            // If server is on 5001, we want http://localhost:5001/uploads/...
-                            // But let's check how headers are set. 
-                            // Usually we just save the relative path 'uploads/cv/...' or the full server URL.
-                            // For simplicity given existing logic likely expects a full URL if it was Cloudinary:
-                            const serverUrl = `${req.protocol}://${req.get('host')}`;
-                            cvPath = req.files.cv[0].path.replace(/\\/g, '/'); // uploads/cv/file.pdf
-                            cvPath = `${serverUrl}/${cvPath}`;
-                        }
-                    }
+                // Ensure files are present before proceeding
+                if (!req.files || !req.files.cv) {
+                    await User.findByIdAndDelete(user._id);
+                    return res.status(400).json({ message: 'CV file is required.' });
                 }
 
-                if (req.files && req.files.profile_picture) {
-                    profilePath = req.files.profile_picture[0].path;
-                    if (process.env.STORAGE_TYPE === 'local') {
-                        const serverUrl = `${req.protocol}://${req.get('host')}`;
-                        let relativePath = req.files.profile_picture[0].path.replace(/\\/g, '/');
-                        profilePath = `${serverUrl}/${relativePath}`;
+                // Handle file paths
+                let cvPath = req.files.cv[0].path;
+                let profilePath = '';
+
+                // Normalize paths if using local storage
+                if (process.env.STORAGE_TYPE === 'local') {
+                    const serverUrl = `${req.protocol}://${req.get('host')}`;
+
+                    // Normalize CV path
+                    if (!cvPath.startsWith('http')) {
+                        cvPath = cvPath.replace(/\\/g, '/');
+                        cvPath = `${serverUrl}/${cvPath}`;
+                    }
+
+                    // Normalize Profile Picture path if exists
+                    if (req.files.profile_picture) {
+                        profilePath = req.files.profile_picture[0].path.replace(/\\/g, '/');
+                        profilePath = `${serverUrl}/${profilePath}`;
+                    }
+                } else {
+                    // Cloudinary or other storage (paths are already URLs)
+                    if (req.files.profile_picture) {
+                        profilePath = req.files.profile_picture[0].path;
                     }
                 }
 
@@ -137,7 +133,7 @@ const registerUser = async (req, res) => {
             } catch (error) {
                 // Rollback user creation if student creation fails
                 await User.findByIdAndDelete(user._id);
-                // Also optionally delete uploaded files here if local
+                console.error("Registration Error:", error);
                 res.status(400).json({ message: 'Invalid student data: ' + error.message });
                 return;
             }

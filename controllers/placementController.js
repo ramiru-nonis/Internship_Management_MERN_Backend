@@ -105,13 +105,13 @@ const getPlacementForm = async (req, res) => {
 
         // If student status is 'not hired' or 'non-intern', pretend no form exists to allow resubmission
         if (['not hired', 'non-intern'].includes(student.status)) {
-            return res.status(404).json({ message: 'No placement form found' });
+            return res.status(200).json(null);
         }
 
         const placementForm = await PlacementForm.findOne({ student: student._id });
 
         if (!placementForm) {
-            return res.status(404).json({ message: 'No placement form found' });
+            return res.status(200).json(null);
         }
 
         res.json(placementForm);
