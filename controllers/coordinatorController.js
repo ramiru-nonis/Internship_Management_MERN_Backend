@@ -2,6 +2,7 @@ const Student = require('../models/Student');
 const Application = require('../models/Application');
 const Internship = require('../models/Internship');
 const PlacementForm = require('../models/PlacementForm');
+const User = require('../models/User');
 
 // @desc    Get dashboard statistics
 // @route   GET /api/coordinator/dashboard
