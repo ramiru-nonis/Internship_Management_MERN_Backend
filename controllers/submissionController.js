@@ -7,13 +7,30 @@ const path = require('path');
 const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
 // Helper: Check if all logbooks are approved
+// Helper: Check if all logbooks are approved based on duration
 const isLogbookRequirementsMet = async (studentId) => {
     const Logbook = require('../models/Logbook');
+    const PlacementForm = require('../models/PlacementForm');
+    const Student = require('../models/Student');
+
+    // 1. Get Student Profile & Placement
+    const studentProfile = await Student.findOne({ user: studentId });
+    if (!studentProfile) return false;
+
+    const placement = await PlacementForm.findOne({ student: studentProfile._id });
+    if (!placement) return false;
+
+    // 2. Calculate Expected Months
+    const start = new Date(placement.start_date);
+    const end = new Date(placement.end_date);
+    let expectedMonths = (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth()) + 1;
+    if (expectedMonths < 1) expectedMonths = 1;
+
+    // 3. Count Approved Logbooks
     const logbooks = await Logbook.find({ studentId });
-    const total = logbooks.length;
-    const approved = logbooks.filter(lb => lb.status === 'Approved').length;
-    // All existing logbooks must be approved (if 0, then 0 approved is valid)
-    return total === approved;
+    const approvedCount = logbooks.filter(lb => lb.status === 'Approved').length;
+
+    return approvedCount >= expectedMonths;
 };
 
 exports.uploadMarksheet = async (req, res) => {
@@ -25,7 +42,7 @@ exports.uploadMarksheet = async (req, res) => {
         // Enforce Logbook Completion
         const logbookComplete = await isLogbookRequirementsMet(studentId);
         if (!logbookComplete) {
-            return res.status(403).json({ message: "Final submission not allowed. All logbooks must be Approved." });
+            return res.status(403).json({ message: "Final submission not allowed. You must have Approved Logbooks for your entire placement duration." });
         }
 
         // Check attempt limit
@@ -62,7 +79,7 @@ exports.uploadPresentation = async (req, res) => {
         // Enforce Logbook Completion
         const logbookComplete = await isLogbookRequirementsMet(studentId);
         if (!logbookComplete) {
-            return res.status(403).json({ message: "Final submission not allowed. All logbooks must be Approved." });
+            return res.status(403).json({ message: "Final submission not allowed. You must have Approved Logbooks for your entire placement duration." });
         }
 
         // Check attempt limit
@@ -251,6 +268,8 @@ exports.getStudentSubmissions = async (req, res) => {
         const Marksheet = require('../models/Marksheet');
         const Presentation = require('../models/Presentation');
         const Logbook = require('../models/Logbook');
+        const PlacementForm = require('../models/PlacementForm');
+        const Student = require('../models/Student');
 
         // Fetch LATEST Marksheet
         const marksheet = await Marksheet.findOne({ studentId }).sort({ createdAt: -1 });
@@ -265,7 +284,20 @@ exports.getStudentSubmissions = async (req, res) => {
         const totalLogbooks = logbooks.length;
         const approvedLogbooks = logbooks.filter(lb => lb.status === 'Approved').length;
 
-        const isLogbookComplete = totalLogbooks === approvedLogbooks;
+        // Calculate EXPECTED Logbooks
+        let expectedTotal = 0;
+        const studentProfile = await Student.findOne({ user: studentId });
+        if (studentProfile) {
+            const placement = await PlacementForm.findOne({ student: studentProfile._id });
+            if (placement) {
+                const start = new Date(placement.start_date);
+                const end = new Date(placement.end_date);
+                expectedTotal = (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth()) + 1;
+                if (expectedTotal < 1) expectedTotal = 1;
+            }
+        }
+
+        const isLogbookComplete = approvedLogbooks >= expectedTotal && expectedTotal > 0;
 
         res.status(200).json({
             marksheet: marksheet || null,
@@ -274,8 +306,9 @@ exports.getStudentSubmissions = async (req, res) => {
             presentationCount: presentationCount,
             logbookStatus: {
                 complete: isLogbookComplete,
-                total: totalLogbooks,
-                approved: approvedLogbooks
+                total: expectedTotal, // Send EXPECTED total to frontend
+                approved: approvedLogbooks,
+                actualTotal: totalLogbooks
             }
         });
     } catch (error) {
