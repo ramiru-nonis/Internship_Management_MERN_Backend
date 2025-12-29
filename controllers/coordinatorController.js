@@ -27,6 +27,9 @@ const getDashboardStats = async (req, res) => {
             nonIntern: await Student.countDocuments({ status: 'non-intern' }),
             intern: await Student.countDocuments({ status: 'intern' }),
             completed: await Student.countDocuments({ status: 'Completed' }),
+            approved: await Student.countDocuments({ status: 'approved' }),
+            hired: await Student.countDocuments({ status: 'hired' }),
+            notHired: await Student.countDocuments({ status: 'not hired' }),
         };
 
         // Recent applications (last 10)
