@@ -12,8 +12,8 @@ const isLogbookRequirementsMet = async (studentId) => {
     const logbooks = await Logbook.find({ studentId });
     const total = logbooks.length;
     const approved = logbooks.filter(lb => lb.status === 'Approved').length;
-    // Must have at least one logbook, and all must be approved
-    return total > 0 && total === approved;
+    // All existing logbooks must be approved (if 0, then 0 approved is valid)
+    return total === approved;
 };
 
 exports.uploadMarksheet = async (req, res) => {
@@ -265,7 +265,7 @@ exports.getStudentSubmissions = async (req, res) => {
         const totalLogbooks = logbooks.length;
         const approvedLogbooks = logbooks.filter(lb => lb.status === 'Approved').length;
 
-        const isLogbookComplete = totalLogbooks > 0 && totalLogbooks === approvedLogbooks;
+        const isLogbookComplete = totalLogbooks === approvedLogbooks;
 
         res.status(200).json({
             marksheet: marksheet || null,
