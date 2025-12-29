@@ -6,14 +6,14 @@ const path = require('path');
 
 const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
-// Helper: Check if all logbooks are approved
+// Helper: Check if all logbooks are submitted (not Draft)
 const isLogbookRequirementsMet = async (studentId) => {
     const Logbook = require('../models/Logbook');
     const logbooks = await Logbook.find({ studentId });
     const total = logbooks.length;
-    const approved = logbooks.filter(lb => lb.status === 'Approved').length;
-    // Must have at least one logbook, and all must be approved
-    return total > 0 && total === approved;
+    const submitted = logbooks.filter(lb => lb.status !== 'Draft').length;
+    // Must have at least one logbook, and all must be submitted
+    return total > 0 && total === submitted;
 };
 
 exports.uploadMarksheet = async (req, res) => {
@@ -25,7 +25,7 @@ exports.uploadMarksheet = async (req, res) => {
         // Enforce Logbook Completion
         const logbookComplete = await isLogbookRequirementsMet(studentId);
         if (!logbookComplete) {
-            return res.status(403).json({ message: "Final submission not allowed. All logbooks must be Approved." });
+            return res.status(403).json({ message: "Final submission not allowed. All logbooks must be Submitted." });
         }
 
         // Check attempt limit
@@ -62,7 +62,7 @@ exports.uploadPresentation = async (req, res) => {
         // Enforce Logbook Completion
         const logbookComplete = await isLogbookRequirementsMet(studentId);
         if (!logbookComplete) {
-            return res.status(403).json({ message: "Final submission not allowed. All logbooks must be Approved." });
+            return res.status(403).json({ message: "Final submission not allowed. All logbooks must be Submitted." });
         }
 
         // Check attempt limit
@@ -263,9 +263,9 @@ exports.getStudentSubmissions = async (req, res) => {
         // Check Logbook Status
         const logbooks = await Logbook.find({ studentId });
         const totalLogbooks = logbooks.length;
-        const approvedLogbooks = logbooks.filter(lb => lb.status === 'Approved').length;
+        const submittedLogbooks = logbooks.filter(lb => lb.status !== 'Draft').length;
 
-        const isLogbookComplete = totalLogbooks > 0 && totalLogbooks === approvedLogbooks;
+        const isLogbookComplete = totalLogbooks > 0 && totalLogbooks === submittedLogbooks;
 
         res.status(200).json({
             marksheet: marksheet || null,
@@ -275,7 +275,7 @@ exports.getStudentSubmissions = async (req, res) => {
             logbookStatus: {
                 complete: isLogbookComplete,
                 total: totalLogbooks,
-                approved: approvedLogbooks
+                submitted: submittedLogbooks
             }
         });
     } catch (error) {
