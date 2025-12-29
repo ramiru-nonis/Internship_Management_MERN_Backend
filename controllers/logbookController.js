@@ -163,8 +163,8 @@ exports.submitLogbook = async (req, res) => {
 
         // Send Email
         const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
-        const approveLink = `${frontendUrl}/verify-logbook?id=${logbook._id}&status=Approved`;
-        const rejectLink = `${frontendUrl}/verify-logbook?id=${logbook._id}&status=Rejected`;
+        const approveLink = `${frontendUrl}/verify-logbook/${logbook._id}?action=approve`;
+        const rejectLink = `${frontendUrl}/verify-logbook/${logbook._id}?action=reject`;
 
         // Generate HTML Table
         const rows = logbook.weeks.sort((a, b) => a.weekNumber - b.weekNumber).map(w => `
@@ -247,8 +247,9 @@ exports.handleMentorActionLink = async (req, res) => {
         // Support both params (GET) and body (POST)
         const body = req.body || {};
         const id = req.params.id || body.logbookId;
-        const status = req.params.status || body.status;
+        const status = req.body.status || req.params.status; // Prefer body for status in POST
         const feedback = body.feedback || "";
+        const rejectionReason = body.rejectionReason || ""; // NEW: Capture rejection reason
 
         console.log(`[DEBUG] Params - ID: ${id}, Status: ${status}`);
 
@@ -270,6 +271,9 @@ exports.handleMentorActionLink = async (req, res) => {
 
         logbook.status = status;
         if (feedback) logbook.mentorComments = feedback;
+        if (status === 'Rejected' && rejectionReason) {
+            logbook.rejectionReason = rejectionReason;
+        }
         await logbook.save();
         console.log("[DEBUG] Logbook saved with new status");
 
@@ -304,10 +308,18 @@ exports.handleMentorActionLink = async (req, res) => {
 
                 let feedbackHtml = '';
                 if (feedback) {
-                    feedbackHtml = `
+                    feedbackHtml += `
                         <div style="background-color: #f9f9f9; padding: 15px; border-left: 4px solid #007bff; margin: 20px 0;">
                             <strong>Mentor Feedback:</strong><br/>
                             <p style="margin-top: 5px; font-style: italic;">"${feedback}"</p>
+                        </div>
+                    `;
+                }
+                if (status === 'Rejected' && rejectionReason) {
+                    feedbackHtml += `
+                        <div style="background-color: #fff5f5; padding: 15px; border-left: 4px solid #dc3545; margin: 20px 0;">
+                            <strong>Rejection Reason:</strong><br/>
+                            <p style="margin-top: 5px; font-style: italic;">"${rejectionReason}"</p>
                         </div>
                     `;
                 }
@@ -338,7 +350,7 @@ exports.handleMentorActionLink = async (req, res) => {
     } catch (error) {
         console.error("Action error stack:", error.stack);
         console.error("Action error:", error);
-        res.status(500).json({ message: `Server Error: ${error.message}` });
+        res.status(500).json({ message: `Server Error: ${error.message} ` });
     }
 };
 

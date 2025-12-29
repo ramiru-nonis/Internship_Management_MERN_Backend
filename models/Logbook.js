@@ -24,6 +24,10 @@ const LogbookSchema = new mongoose.Schema({
         type: String,
         default: ""
     },
+    rejectionReason: {
+        type: String,
+        default: ""
+    },
     submittedDate: {
         type: Date,
         default: Date.now
