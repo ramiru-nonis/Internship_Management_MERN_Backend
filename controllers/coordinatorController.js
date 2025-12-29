@@ -22,6 +22,12 @@ const getDashboardStats = async (req, res) => {
         // Expired posts
         const expiredPosts = await Internship.countDocuments({ status: 'expired' });
 
+        // Calculate incomplete profiles (Orphan Users)
+        // Users with role 'student' BUT not in Student document count
+        const totalStudentUsers = await User.countDocuments({ role: 'student' });
+        const totalStudentProfiles = await Student.countDocuments();
+        const incompleteProfiles = Math.max(0, totalStudentUsers - totalStudentProfiles);
+
         // Status breakdown
         const statusBreakdown = {
             nonIntern: await Student.countDocuments({ status: 'non-intern' }),
@@ -30,6 +36,7 @@ const getDashboardStats = async (req, res) => {
             approved: await Student.countDocuments({ status: 'approved' }),
             hired: await Student.countDocuments({ status: 'hired' }),
             notHired: await Student.countDocuments({ status: 'not hired' }),
+            incomplete: incompleteProfiles
         };
 
         // Recent applications (last 10)
@@ -59,6 +66,7 @@ const getAllStudents = async (req, res) => {
     try {
         const { status, search } = req.query;
         const Presentation = require('../models/Presentation'); // Lazy load
+        const User = require('../models/User'); // Lazy load User model
 
         let query = {};
 
@@ -83,13 +91,63 @@ const getAllStudents = async (req, res) => {
             ];
         }
 
+        // 1. Fetch Students (with profiles)
         const students = await Student.find(query)
             .populate('user', 'email')
             .sort({ createdAt: -1 })
-            .lean(); // Convert to plain object to attach new properties
+            .lean();
 
-        // Attach presentation status to each student
-        const studentIds = students.map(s => s.user._id);
+        // 2. Fetch All "Student" Users (only if search/filters don't strictly exclude them)
+        // If searching by name/degree, orphans won't match (they have no name/degree). 
+        // We only show orphans if searching by email (which we should add) or viewing all.
+        // For simplicity, we fetch orphans if no strict name/degree filter is active OR if the search matches their email.
+
+        let orphanUsers = [];
+
+        // Only fetch orphans if we are NOT filtering by degree (orphans have none) 
+        // and NOT filtering by a specific status that isn't 'Incomplete' (orphans are effectively Incomplete)
+        // Adjust logic: Fetch them, then filter in memory if needed.
+
+        const fetchOrphans = (!req.query.degree || req.query.degree === 'all') &&
+            (!status || status === 'all' || status.includes('Incomplete'));
+
+        if (fetchOrphans) {
+            let userQuery = { role: 'student' };
+            if (search) {
+                userQuery.email = { $regex: search, $options: 'i' };
+            }
+
+            const allStudentUsers = await User.find(userQuery).lean();
+
+            // Set of User IDs that already have a student profile
+            const existingStudentUserIds = new Set(students.map(s => s.user?._id?.toString() || s.user?.toString()));
+
+            // Filter for users NOT in the set
+            orphanUsers = allStudentUsers.filter(u => !existingStudentUserIds.has(u._id.toString()));
+        }
+
+        // 3. Format Orphans to look like Students
+        const formattedOrphans = orphanUsers.map(u => ({
+            _id: 'orphan_' + u._id, // distinct ID format
+            user: u,
+            first_name: 'N/A',
+            last_name: '(No Profile)',
+            cb_number: 'N/A',
+            email: u.email,
+            contact_number: 'N/A',
+            degree: 'N/A',
+            degree_level: 'N/A',
+            status: 'Incomplete',
+            profile_picture: null,
+            cv: null,
+            isOrphan: true
+        }));
+
+        // 4. Merge
+        const allRecords = [...students, ...formattedOrphans];
+
+        // Attach presentation status (only for real students, orphans have none)
+        const studentIds = students.map(s => s.user?._id);
         const presentations = await Presentation.find({ studentId: { $in: studentIds } });
 
         const presentationMap = {};
@@ -97,12 +155,12 @@ const getAllStudents = async (req, res) => {
             presentationMap[p.studentId.toString()] = true;
         });
 
-        const studentsWithStats = students.map(student => ({
-            ...student,
-            hasPresentation: !!presentationMap[student.user._id.toString()]
+        const finalResults = allRecords.map(record => ({
+            ...record,
+            hasPresentation: record.isOrphan ? false : !!presentationMap[record.user?._id?.toString()]
         }));
 
-        res.json(studentsWithStats);
+        res.json(finalResults);
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
