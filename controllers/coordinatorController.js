@@ -109,39 +109,46 @@ const getAllStudents = async (req, res) => {
         // Adjust logic: Fetch them, then filter in memory if needed.
 
         const fetchOrphans = (!req.query.degree || req.query.degree === 'all') &&
-            (!status || status === 'all' || status.includes('Incomplete'));
+            (!status || status === 'all' || ['Incomplete', 'Coordinator', 'Admin'].some(s => status.includes(s)));
 
         if (fetchOrphans) {
-            let userQuery = { role: 'student' };
+            let userQuery = {}; // Fetch ALL roles
             if (search) {
                 userQuery.email = { $regex: search, $options: 'i' };
             }
 
-            const allStudentUsers = await User.find(userQuery).lean();
+            const allUsers = await User.find(userQuery).select('-password').lean();
 
             // Set of User IDs that already have a student profile
             const existingStudentUserIds = new Set(students.map(s => s.user?._id?.toString() || s.user?.toString()));
 
             // Filter for users NOT in the set
-            orphanUsers = allStudentUsers.filter(u => !existingStudentUserIds.has(u._id.toString()));
+            orphanUsers = allUsers.filter(u => !existingStudentUserIds.has(u._id.toString()));
         }
 
-        // 3. Format Orphans to look like Students
-        const formattedOrphans = orphanUsers.map(u => ({
-            _id: 'orphan_' + u._id, // distinct ID format
-            user: u,
-            first_name: 'N/A',
-            last_name: '(No Profile)',
-            cb_number: 'N/A',
-            email: u.email,
-            contact_number: 'N/A',
-            degree: 'N/A',
-            degree_level: 'N/A',
-            status: 'Incomplete',
-            profile_picture: null,
-            cv: null,
-            isOrphan: true
-        }));
+        // 3. Format Orphans/Staff to look like Students
+        const formattedOrphans = orphanUsers.map(u => {
+            let derivedStatus = 'Incomplete';
+            if (u.role === 'coordinator') derivedStatus = 'Coordinator';
+            if (u.role === 'admin') derivedStatus = 'Admin';
+
+            return {
+                _id: 'user_' + u._id,
+                user: u,
+                first_name: u.role === 'student' ? 'N/A' : u.role.charAt(0).toUpperCase() + u.role.slice(1),
+                last_name: u.role === 'student' ? '(No Profile)' : '(Staff)',
+                cb_number: 'N/A',
+                email: u.email,
+                contact_number: 'N/A',
+                degree: 'N/A',
+                degree_level: 'N/A',
+                status: derivedStatus,
+                profile_picture: null,
+                cv: null,
+                isOrphan: true,
+                role: u.role
+            };
+        });
 
         // 4. Merge
         const allRecords = [...students, ...formattedOrphans];
