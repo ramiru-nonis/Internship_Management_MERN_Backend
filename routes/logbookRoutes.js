@@ -12,5 +12,6 @@ router.post('/submit', logbookController.submitLogbook);
 router.get('/:id', logbookController.getLogbookById);
 router.get('/history/:studentId', logbookController.getHistory);
 router.get('/action/:id/:status', logbookController.handleMentorActionLink);
+router.post('/verify/:id', logbookController.handleMentorActionLink);
 
 module.exports = router;
