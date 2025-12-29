@@ -110,10 +110,10 @@ const getAllStudents = async (req, res) => {
         // Adjust logic: Fetch them, then filter in memory if needed.
 
         const fetchOrphans = (!req.query.degree || req.query.degree === 'all') &&
-            (!status || status === 'all' || ['Incomplete', 'Coordinator', 'Admin'].some(s => status.includes(s)));
+            (!status || status === 'all' || status.includes('Incomplete'));
 
         if (fetchOrphans) {
-            let userQuery = {}; // Fetch ALL roles
+            let userQuery = { role: 'student' }; // Only fetch students
             if (search) {
                 userQuery.email = { $regex: search, $options: 'i' };
             }
@@ -130,14 +130,12 @@ const getAllStudents = async (req, res) => {
         // 3. Format Orphans/Staff to look like Students
         const formattedOrphans = orphanUsers.map(u => {
             let derivedStatus = 'Incomplete';
-            if (u.role === 'coordinator') derivedStatus = 'Coordinator';
-            if (u.role === 'admin') derivedStatus = 'Admin';
 
             return {
                 _id: 'user_' + u._id,
                 user: u,
-                first_name: u.role === 'student' ? 'N/A' : u.role.charAt(0).toUpperCase() + u.role.slice(1),
-                last_name: u.role === 'student' ? '(No Profile)' : '(Staff)',
+                first_name: 'N/A',
+                last_name: '(No Profile)',
                 cb_number: 'N/A',
                 email: u.email,
                 contact_number: 'N/A',
