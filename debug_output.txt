@@ -1,0 +1,30 @@
+[dotenv@17.2.3] injecting env (13) from .env -- tip: 🛠️  run anywhere with `dotenvx run -- yourcommand`
+Connecting to MongoDB...
+Connected.
+
+--- Debugging Data for: ramirunonis2006@gmail.com ---
+
+✅ User Found: ID=6946b5ab67afa5d15e00ad1b
+✅ Student Profile Found: ID=6946b5ac67afa5d15e00ad1d
+✅ Placement Form Found: ID=6946b5fe67afa5d15e00ad75
+   👉 Mentor Email in Placement: 'dulainmu@gmail.com'
+
+Found 4 Logbooks for this User:
+   - ID=6948c2a80ceb28a35384db59
+     Month=3, Year=2025, Status=Pending
+     👉 Saved Mentor Email in Logbook: 'dulainmu@gmail.com'
+     Last Updated: Mon Dec 22 2025 09:32:43 GMT+0530 (India Standard Time)
+   - ID=6948c1ae0ceb28a35384db28
+     Month=5, Year=2025, Status=Pending
+     👉 Saved Mentor Email in Logbook: 'dulainmu@gmail.com'
+     Last Updated: Mon Dec 22 2025 09:28:06 GMT+0530 (India Standard Time)
+   - ID=6946b986b62fd348e32c418b
+     Month=2, Year=2025, Status=Pending
+     👉 Saved Mentor Email in Logbook: 'ramirunonis2006@gmail.com'
+     Last Updated: Sat Dec 20 2025 20:36:22 GMT+0530 (India Standard Time)
+   - ID=6946b60d67afa5d15e00ad93
+     Month=1, Year=2025, Status=Approved
+     👉 Saved Mentor Email in Logbook: 'dulainmu@gmail.com'
+     Last Updated: Mon Dec 22 2025 09:21:36 GMT+0530 (India Standard Time)
+
+--- End Debug ---

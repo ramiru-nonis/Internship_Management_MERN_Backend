@@ -1,0 +1,25 @@
+PORT=5001
+MONGO_URI=mongodb+srv://Rumiru:Rumiru1234@nextstep.66flzmy.mongodb.net/?appName=NextStep
+JWT_SECRET=your_jwt_secret_key_here
+
+# Cloudinary
+CLOUDINARY_CLOUD_NAME=dlrrylhdh
+CLOUDINARY_API_KEY=546594258173543
+CLOUDINARY_API_SECRET=iGW06tqiLpj3q4xvEarJMxbjer8
+
+# New Performance Config
+STORAGE_TYPE=cloud
+FRONTEND_URL=https://client-lime-sigma-95.vercel.app
+
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+EMAIL_USERNAME=auracodexs@gmail.com
+EMAIL_PASSWORD=kjhb iegm exfv uklc
+BACKEND_URL=https://internship-management-backend-production.up.railway.app
+
+# Resend Email API
+RESEND_API_KEY=re_Tcvuhkow_Lt5bwPPhjpLYsUXX5kgg17Wt
+
+# AI Configuration
+# Get your key from https://platform.openai.com
+OPENAI_API_KEY=PLACEHOLDER_KEY_HERE
