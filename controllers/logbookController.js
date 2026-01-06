@@ -177,6 +177,8 @@ exports.submitLogbook = async (req, res) => {
             </tr>
         `).join('');
 
+        // Mail template
+        
         const message = `
             <div style="font-family: Arial, sans-serif; padding: 20px;">
                 <h2>Logbook Approval Request</h2>

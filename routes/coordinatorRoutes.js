@@ -6,6 +6,7 @@ const {
     updateStudentStatus,
     getAllApplications,
     getAllPlacementForms,
+    getStudentProfile,
 } = require('../controllers/coordinatorController');
 const { downloadCVs } = require('../controllers/studentController');
 const { protect, coordinator } = require('../middleware/authMiddleware');

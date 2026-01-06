@@ -24,6 +24,10 @@ const LogbookSchema = new mongoose.Schema({
         type: String,
         default: ""
     },
+    mentorComments: {
+        type: String,
+        default: ""
+    },
     rejectionReason: {
         type: String,
         default: ""
