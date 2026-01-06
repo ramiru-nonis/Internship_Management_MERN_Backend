@@ -280,10 +280,54 @@ const getAllPlacementForms = async (req, res) => {
     }
 };
 
+const getStudentProfile = async (req, res) => {
+    try {
+        const student = await Student.findById(req.params.id).populate('user', 'email');
+
+        if (!student) {
+            return res.status(404).json({ message: 'Student not found' });
+        }
+
+        // Fetch Applications
+        const applications = await Application.find({ student: student._id })
+            .populate('internship', 'title company_name category')
+            .sort({ createdAt: -1 });
+
+        // Fetch Placement Form
+        const placement = await PlacementForm.findOne({ student: student._id });
+
+        // Fetch Submissions
+        const Marksheet = require('../models/Marksheet');
+        const Presentation = require('../models/Presentation');
+        const Logbook = require('../models/Logbook');
+
+        const marksheet = await Marksheet.findOne({ studentId: student.user._id }).sort({ createdAt: -1 });
+        const presentation = await Presentation.findOne({ studentId: student.user._id }).sort({ createdAt: -1 });
+        const logbooks = await Logbook.find({ studentId: student.user._id });
+
+        res.json({
+            student,
+            applications,
+            placement,
+            submissions: {
+                marksheet,
+                presentation,
+                logbooks: {
+                    total: logbooks.length,
+                    approved: logbooks.filter(lb => lb.status === 'Approved').length
+                }
+            }
+        });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
 module.exports = {
     getDashboardStats,
     getAllStudents,
     updateStudentStatus,
     getAllApplications,
     getAllPlacementForms,
+    getStudentProfile,
 };

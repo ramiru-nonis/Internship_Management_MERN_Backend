@@ -18,6 +18,7 @@ router.get('/dashboard', getDashboardStats);
 router.get('/students', getAllStudents);
 router.put('/students/:id/status', updateStudentStatus);
 router.post('/students/download-cvs', downloadCVs);
+router.get('/students/:id/profile', getStudentProfile);
 router.get('/applications', getAllApplications);
 router.get('/placements', getAllPlacementForms);
 
