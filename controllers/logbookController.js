@@ -178,7 +178,7 @@ exports.submitLogbook = async (req, res) => {
         `).join('');
 
         // Mail template
-        
+
         const message = `
             <div style="font-family: Arial, sans-serif; padding: 20px;">
                 <h2>Logbook Approval Request</h2>
@@ -366,5 +366,26 @@ exports.getHistory = async (req, res) => {
         res.status(200).json(logbooks);
     } catch (error) {
         res.status(500).json({ message: 'Error fetching history', error: error.message });
+    }
+};
+
+// Download Logbook PDF
+exports.downloadLogbookPDF = async (req, res) => {
+    try {
+        const { generateLogbookPDF } = require('../utils/logbookTemplate');
+
+        const logbook = await Logbook.findById(req.params.id);
+        if (!logbook) return res.status(404).json({ message: 'Logbook not found' });
+
+        const studentData = await Student.findOne({ user: logbook.studentId });
+        if (!studentData) return res.status(404).json({ message: 'Student profile not found' });
+
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `attachment; filename=Logbook_${studentData.cb_number}_Month_${logbook.month}.pdf`);
+
+        generateLogbookPDF(logbook, studentData, res);
+    } catch (error) {
+        console.error("Error generating PDF:", error);
+        res.status(500).json({ message: 'Error generating PDF', error: error.message });
     }
 };

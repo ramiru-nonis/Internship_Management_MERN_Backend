@@ -10,6 +10,7 @@ router.post('/entry', logbookController.saveLogbookEntry);
 router.post('/submit', logbookController.submitLogbook);
 // router.post('/submit-all', logbookController.submitAllLogbooks);
 router.get('/:id', logbookController.getLogbookById);
+router.get('/:id/download', logbookController.downloadLogbookPDF);
 router.get('/history/:studentId', logbookController.getHistory);
 router.get('/action/:id/:status', logbookController.handleMentorActionLink);
 router.post('/verify/:id', logbookController.handleMentorActionLink);
