@@ -258,7 +258,19 @@ const downloadCVs = async (req, res) => {
 // @route   DELETE /api/students/profile
 // @access  Private (Student)
 const deleteAccount = async (req, res) => {
+    const { password } = req.body;
+
+    if (!password) {
+        return res.status(400).json({ message: 'Password is required to delete account' });
+    }
+
     const mongoose = require('mongoose');
+    const user = await User.findById(req.user._id);
+
+    if (!user || !(await user.matchPassword(password))) {
+        return res.status(401).json({ message: 'Incorrect password. Deletion aborted.' });
+    }
+
     const session = await mongoose.startSession();
     session.startTransaction();
 
