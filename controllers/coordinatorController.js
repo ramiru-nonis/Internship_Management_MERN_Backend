@@ -65,7 +65,7 @@ const getDashboardStats = async (req, res) => {
 // @access  Private (Coordinator/Admin)
 const getAllStudents = async (req, res) => {
     try {
-        const { status, search } = req.query;
+        const { status, search, batch } = req.query;
         const Presentation = require('../models/Presentation'); // Lazy load
         const User = require('../models/User'); // Lazy load User model
 
@@ -81,6 +81,11 @@ const getAllStudents = async (req, res) => {
         if (req.query.degree && req.query.degree !== 'all') {
             const degrees = req.query.degree.split(',');
             query.degree = { $in: degrees };
+        }
+
+        // Filter by batch
+        if (batch) {
+            query.batch = { $regex: batch, $options: 'i' };
         }
 
         // Search by name or CB number

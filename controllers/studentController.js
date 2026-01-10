@@ -38,7 +38,8 @@ const updateProfile = async (req, res) => {
             degree_level,
             availability,
             preferences,
-            status
+            status,
+            batch
         } = req.body;
 
         // Update fields if provided
@@ -48,6 +49,7 @@ const updateProfile = async (req, res) => {
         if (degree) student.degree = degree;
         if (degree_level) student.degree_level = degree_level;
         if (availability) student.availability = availability;
+        if (batch) student.batch = batch;
         if (preferences) student.preferences = Array.isArray(preferences) ? preferences : JSON.parse(preferences);
 
         if (status && student.status !== status) {

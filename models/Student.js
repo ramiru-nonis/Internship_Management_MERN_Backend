@@ -46,6 +46,9 @@ const studentSchema = mongoose.Schema({
     preferences: [{
         type: String,
     }],
+    batch: {
+        type: String,
+    },
     status: {
         type: String,
         enum: ['non-intern', 'intern', 'Completed', 'approved', 'hired', 'not hired'], // Expanded enum to support transition
