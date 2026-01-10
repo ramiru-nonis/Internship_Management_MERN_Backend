@@ -7,8 +7,9 @@ const {
     uploadProfilePicture,
     getApplications,
     getStatus,
+    deleteAccount,
 } = require('../controllers/studentController');
-const { protect, student } = require('../middleware/authMiddleware');
+const { protect } = require('../middleware/authMiddleware');
 const upload = require('../middleware/uploadMiddleware');
 
 // All routes require authentication and student role
@@ -16,6 +17,8 @@ router.use(protect);
 
 router.get('/profile', getProfile);
 router.put('/profile', updateProfile);
+router.delete('/profile', deleteAccount);
+
 router.post('/upload-cv', (req, res, next) => {
     upload.single('cv')(req, res, (err) => {
         if (err) {
@@ -27,6 +30,7 @@ router.post('/upload-cv', (req, res, next) => {
         next();
     });
 }, uploadCV);
+
 router.post('/upload-picture', (req, res, next) => {
     upload.single('profile_picture')(req, res, (err) => {
         if (err) {
@@ -38,6 +42,7 @@ router.post('/upload-picture', (req, res, next) => {
         next();
     });
 }, uploadProfilePicture);
+
 router.get('/applications', getApplications);
 router.get('/status', getStatus);
 

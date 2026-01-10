@@ -254,6 +254,58 @@ const downloadCVs = async (req, res) => {
     }
 };
 
+// @desc    Delete student account
+// @route   DELETE /api/students/profile
+// @access  Private (Student)
+const deleteAccount = async (req, res) => {
+    const mongoose = require('mongoose');
+    const session = await mongoose.startSession();
+    session.startTransaction();
+
+    try {
+        const userId = req.user._id;
+        const student = await Student.findOne({ user: userId });
+
+        if (!student) {
+            await session.abortTransaction();
+            session.endSession();
+            return res.status(404).json({ message: 'Student profile not found' });
+        }
+
+        const studentId = student._id;
+
+        // Models to delete from
+        const Application = require('../models/Application');
+        const PlacementForm = require('../models/PlacementForm');
+        const Logbook = require('../models/Logbook');
+        const Marksheet = require('../models/Marksheet');
+        const Presentation = require('../models/Presentation');
+        const Notification = require('../models/Notification');
+
+        // Delete all associated data
+        await Application.deleteMany({ student: studentId }).session(session);
+        await PlacementForm.deleteMany({ student: studentId }).session(session);
+        await Logbook.deleteMany({ studentId: userId }).session(session); // Logbook uses User ID
+        await Marksheet.deleteMany({ studentId: userId }).session(session); // Marksheet uses User ID
+        await Presentation.deleteMany({ studentId: userId }).session(session); // Presentation uses User ID
+        await Notification.deleteMany({ recipient: userId }).session(session);
+
+        // Delete Student profile and User account
+        await Student.deleteOne({ _id: studentId }).session(session);
+        await User.deleteOne({ _id: userId }).session(session);
+
+        await session.commitTransaction();
+        session.endSession();
+
+        res.json({ message: 'Account and all associated data deleted successfully' });
+    } catch (error) {
+        await session.abortTransaction();
+        session.endSession();
+        console.error('Account deletion error:', error);
+        res.status(500).json({ message: 'Failed to delete account', error: error.message });
+    }
+};
+
 module.exports = {
     getProfile,
     updateProfile,
@@ -262,4 +314,5 @@ module.exports = {
     getApplications,
     getStatus,
     downloadCVs,
+    deleteAccount,
 };
