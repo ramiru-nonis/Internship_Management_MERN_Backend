@@ -185,6 +185,7 @@ exports.getAllSubmissions = async (req, res) => {
                 status: item.status || 'Submitted',
                 date: item.submittedDate || item.createdAt, // Fallback to createdAt
                 scheduledDate: item.scheduledDate || null,
+                meetLink: item.meetLink || null,
                 fileUrl: item.fileUrl,
                 month: item.month ? `${MONTH_NAMES[item.month - 1]} ${item.year}` : undefined,
                 logbookId: type === 'Logbook' ? item._id : undefined,
@@ -324,7 +325,7 @@ exports.getStudentSubmissions = async (req, res) => {
 exports.schedulePresentation = async (req, res) => {
     try {
         const { id } = req.params;
-        const { scheduledDate } = req.body;
+        const { scheduledDate, meetLink } = req.body;
 
         if (!scheduledDate) {
             return res.status(400).json({ message: "Scheduled date is required." });
@@ -333,6 +334,8 @@ exports.schedulePresentation = async (req, res) => {
         const Presentation = require('../models/Presentation');
         const Notification = require('../models/Notification');
         const Student = require('../models/Student');
+        const User = require('../models/User');
+        const sendEmail = require('../utils/sendEmail');
 
         const presentation = await Presentation.findById(id);
         if (!presentation) {
@@ -340,10 +343,13 @@ exports.schedulePresentation = async (req, res) => {
         }
 
         presentation.scheduledDate = scheduledDate;
+        if (meetLink) presentation.meetLink = meetLink;
         await presentation.save();
 
-        // Notify Student
+        // Notify Student (In-App)
         const student = await Student.findOne({ user: presentation.studentId });
+        const studentUser = await User.findById(presentation.studentId);
+
         if (student && student.user) {
             await Notification.create({
                 recipient: student.user,
@@ -352,7 +358,51 @@ exports.schedulePresentation = async (req, res) => {
             });
         }
 
-        res.status(200).json({ message: "Presentation scheduled successfully.", presentation });
+        // Notify Student (Email)
+        if (studentUser && studentUser.email) {
+            const formattedDate = new Date(scheduledDate).toLocaleDateString('en-GB', {
+                weekday: 'long',
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric',
+            });
+            const formattedTime = new Date(scheduledDate).toLocaleTimeString('en-GB', {
+                hour: '2-digit',
+                minute: '2-digit',
+            });
+
+            const emailMessage = `
+                <div style="font-family: Arial, sans-serif; padding: 20px; line-height: 1.6;">
+                    <h2 style="color: #4f46e5;">Exit Presentation Scheduled</h2>
+                    <p>Dear ${student ? student.first_name : 'Student'},</p>
+                    <p>Your exit presentation has been scheduled by the coordinator. Please find the details below:</p>
+                    
+                    <div style="background-color: #f3f4f6; padding: 15px; border-radius: 8px; margin: 20px 0;">
+                        <p><strong>Date:</strong> ${formattedDate}</p>
+                        <p><strong>Time:</strong> ${formattedTime}</p>
+                        ${meetLink ? `<p><strong>Meeting Link:</strong> <a href="${meetLink}" style="color: #4f46e5; font-weight: bold;">Join Meeting</a></p>` : ''}
+                    </div>
+
+                    ${meetLink ? `<p>Please ensure you join the meeting on time via the link provided above.</p>` : '<p>The meeting details will be shared with you shortly or please check the dashboard for updates.</p>'}
+                    
+                    <p>Best regards,<br/>The Internship Coordination Team</p>
+                </div>
+            `;
+
+            try {
+                await sendEmail({
+                    email: studentUser.email,
+                    subject: 'Exit Presentation Scheduled',
+                    message: emailMessage,
+                    isHtml: true
+                });
+                console.log(`✅ Presentation invitation sent to: ${studentUser.email}`);
+            } catch (emailError) {
+                console.error("❌ Failed to send presentation invitation email:", emailError);
+            }
+        }
+
+        res.status(200).json({ message: "Presentation scheduled and invitation sent.", presentation });
     } catch (error) {
         console.error("Error scheduling presentation:", error);
         res.status(500).json({ message: "Failed to schedule presentation.", error });

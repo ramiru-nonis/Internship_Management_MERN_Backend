@@ -16,6 +16,9 @@ const presentationSchema = new mongoose.Schema({
     },
     scheduledDate: {
         type: Date, // Valid when coordinator assigns time
+    },
+    meetLink: {
+        type: String, // Online meeting link (Google Meet, Teams, Zoom, etc.)
     }
 }, { timestamps: true });
 
