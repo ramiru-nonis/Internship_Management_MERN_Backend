@@ -76,6 +76,9 @@ exports.saveLogbookEntry = async (req, res) => {
 
         if (!logbook) {
             // Create new draft
+            if (weekNum > 1) {
+                return res.status(400).json({ message: `You must fill Week 1 before working on Week ${weekNum}.` });
+            }
             logbook = new Logbook({
                 studentId,
                 month: monthNum,
@@ -84,6 +87,19 @@ exports.saveLogbookEntry = async (req, res) => {
                 mentorEmail: mentorEmail || "",
                 weeks: []
             });
+        }
+
+        // --- WEEKLY SEQUENTIAL CHECK ---
+        if (weekNum > 1) {
+            // Check if all weeks from 1 to weekNum - 1 exist
+            for (let i = 1; i < weekNum; i++) {
+                const weekExists = logbook.weeks.some(w => w.weekNumber === i);
+                if (!weekExists) {
+                    return res.status(400).json({
+                        message: `You must fill Week ${i} before working on Week ${weekNum}.`
+                    });
+                }
+            }
         }
 
         // Upsert Week Data
