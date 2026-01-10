@@ -40,9 +40,18 @@ const getInternships = async (req, res) => {
 
         const internships = await Internship.find(query)
             .populate('posted_by', 'email role')
-            .sort({ createdAt: -1 });
+            .sort({ createdAt: -1 })
+            .lean();
 
-        res.json(internships);
+        // Add application count to each internship
+        const internshipsWithCount = await Promise.all(
+            internships.map(async (internship) => {
+                const applicationCount = await Application.countDocuments({ internship: internship._id });
+                return { ...internship, applicationCount };
+            })
+        );
+
+        res.json(internshipsWithCount);
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
@@ -206,9 +215,18 @@ const getExpiredInternships = async (req, res) => {
     try {
         const expiredInternships = await Internship.find({ status: 'expired' })
             .populate('posted_by', 'email role')
-            .sort({ deadline: -1 });
+            .sort({ deadline: -1 })
+            .lean();
 
-        res.json(expiredInternships);
+        // Add application count to each internship
+        const internshipsWithCount = await Promise.all(
+            expiredInternships.map(async (internship) => {
+                const applicationCount = await Application.countDocuments({ internship: internship._id });
+                return { ...internship, applicationCount };
+            })
+        );
+
+        res.json(internshipsWithCount);
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
