@@ -36,6 +36,12 @@ const LogbookSchema = new mongoose.Schema({
         type: String,
         default: ""
     },
+    auditLog: [{
+        action: String,
+        timestamp: { type: Date, default: Date.now },
+        user: String,
+        details: String
+    }],
     submittedDate: {
         type: Date,
         default: Date.now

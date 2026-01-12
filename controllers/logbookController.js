@@ -85,7 +85,8 @@ exports.saveLogbookEntry = async (req, res) => {
                 year: yearNum,
                 status: 'Draft', // Default to Draft
                 mentorEmail: mentorEmail || "",
-                weeks: []
+                weeks: [],
+                auditLog: [] // Initialize audit log
             });
         }
 
@@ -283,7 +284,7 @@ exports.handleMentorActionLink = async (req, res) => {
         if (logbook.status !== 'Pending' && logbook.status !== 'Submitted') {
             // Allow update if it's just 'Submitted' (backward compat), but block if Approved/Rejected
             if (['Approved', 'Rejected'].includes(logbook.status)) {
-                return res.status(400).json({ message: `This logbook has already been ${logbook.status}.` });
+                return res.status(400).json({ message: "You have already submitted this logbook." });
             }
         }
 
@@ -292,6 +293,14 @@ exports.handleMentorActionLink = async (req, res) => {
         if (status === 'Rejected' && rejectionReason) {
             logbook.rejectionReason = rejectionReason;
         }
+
+        // Add to audit log
+        logbook.auditLog.push({
+            action: status.toUpperCase(),
+            user: 'Mentor',
+            details: status === 'Rejected' ? `Reason: ${rejectionReason}` : 'Approved by mentor'
+        });
+
         await logbook.save();
         console.log("[DEBUG] Logbook saved with new status");
 
@@ -422,6 +431,14 @@ exports.uploadSignedLogbook = async (req, res) => {
         // Save path (handle local vs cloudinary)
         const filePath = req.file.path || req.file.secure_url;
         logbook.signedPDFPath = filePath;
+
+        // Add to audit log
+        logbook.auditLog.push({
+            action: 'PDF_UPLOADED',
+            user: 'Mentor',
+            details: `Signed PDF uploaded: ${req.file.originalname || 'file'}`
+        });
+
         await logbook.save();
 
         res.status(200).json({
