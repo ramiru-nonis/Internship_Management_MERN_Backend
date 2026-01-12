@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const logbookController = require('../controllers/logbookController');
+const upload = require('../middleware/uploadMiddleware');
 // const { protect } = require('../middleware/authMiddleware'); // Assuming auth middleware exists
 
 // router.use(protect); // Protect all routes
@@ -14,5 +15,6 @@ router.get('/:id/download', logbookController.downloadLogbookPDF);
 router.get('/history/:studentId', logbookController.getHistory);
 router.get('/action/:id/:status', logbookController.handleMentorActionLink);
 router.post('/verify/:id', logbookController.handleMentorActionLink);
+router.post('/upload-signed/:id', upload.single('signed_logbook'), logbookController.uploadSignedLogbook);
 
 module.exports = router;

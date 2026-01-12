@@ -17,6 +17,8 @@ const localStorage = multer.diskStorage({
             uploadPath += 'cv';
         } else if (file.fieldname === 'profile_picture') {
             uploadPath += 'profile';
+        } else if (file.fieldname === 'signed_logbook') {
+            uploadPath += 'logbooks';
         }
         createDir(uploadPath);
         cb(null, uploadPath);
@@ -62,6 +64,16 @@ function checkFileType(file, cb) {
             return cb(null, true);
         } else {
             cb('Error: Profile picture must be an image (JPEG, JPG, PNG, WebP)!');
+        }
+    } else if (file.fieldname === 'signed_logbook') {
+        const filetypes = /pdf/;
+        const extname = filetypes.test(path.extname(file.originalname).toLowerCase());
+        const mimetype = filetypes.test(file.mimetype);
+
+        if (mimetype && extname) {
+            return cb(null, true);
+        } else {
+            cb('Error: Signed logbook must be a PDF file!');
         }
     } else {
         cb('Error: Unknown field!');

@@ -48,7 +48,18 @@ const generateLogbookPDF = (logbook, studentData, res) => {
         doc.text('No weekly entries found for this logbook.');
     }
 
-    // Footer/Metadata
+    // Footer/Signature Section
+    doc.moveDown(2);
+    const bottomY = doc.y;
+
+    doc.font('Helvetica-Bold').fontSize(10);
+    doc.text('__________________________', 50, bottomY);
+    doc.text('Mentor Signature', 50, bottomY + 15);
+
+    doc.text('__________________________', 350, bottomY);
+    doc.text('Date', 350, bottomY + 15);
+
+    doc.moveDown(3);
     doc.fontSize(8).fillColor('grey').text(`Generated on ${new Date().toLocaleString()}`, { align: 'right' });
 
     doc.end();

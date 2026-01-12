@@ -32,6 +32,10 @@ const LogbookSchema = new mongoose.Schema({
         type: String,
         default: ""
     },
+    signedPDFPath: {
+        type: String,
+        default: ""
+    },
     submittedDate: {
         type: Date,
         default: Date.now

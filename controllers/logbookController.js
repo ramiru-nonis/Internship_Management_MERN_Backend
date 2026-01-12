@@ -405,3 +405,31 @@ exports.downloadLogbookPDF = async (req, res) => {
         res.status(500).json({ message: 'Error generating PDF', error: error.message });
     }
 };
+
+// Upload Signed Logbook
+exports.uploadSignedLogbook = async (req, res) => {
+    try {
+        const { id } = req.params;
+        if (!req.file) {
+            return res.status(400).json({ message: "No file uploaded" });
+        }
+
+        const logbook = await Logbook.findById(id);
+        if (!logbook) {
+            return res.status(404).json({ message: "Logbook not found" });
+        }
+
+        // Save path (handle local vs cloudinary)
+        const filePath = req.file.path || req.file.secure_url;
+        logbook.signedPDFPath = filePath;
+        await logbook.save();
+
+        res.status(200).json({
+            message: "Signed logbook uploaded successfully",
+            signedPDFPath: filePath
+        });
+    } catch (error) {
+        console.error("Error uploading signed logbook:", error);
+        res.status(500).json({ message: "Error uploading signed logbook", error: error.message });
+    }
+};
