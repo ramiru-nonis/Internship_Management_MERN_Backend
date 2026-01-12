@@ -22,27 +22,63 @@ const generateLogbookPDF = (logbook, studentData, res) => {
 
     // Table Content
     if (logbook.weeks && logbook.weeks.length > 0) {
-        logbook.weeks.sort((a, b) => a.weekNumber - b.weekNumber).forEach((week) => {
-            doc.font('Helvetica-Bold').fontSize(11).text(`Week ${week.weekNumber}`, { underline: true });
-            doc.moveDown(0.5);
+        const sortedWeeks = logbook.weeks.sort((a, b) => a.weekNumber - b.weekNumber);
 
-            const options = { width: 500, align: 'justify' };
+        // Table Header
+        const tableTop = doc.y;
+        const col1Width = 60;
+        const col2Width = 440;
+        const rowHeight = 20;
 
-            doc.font('Helvetica-Bold').fontSize(10).text('Activities:');
-            doc.font('Helvetica').fontSize(10).text(week.activities || 'N/A', options);
-            doc.moveDown(0.5);
+        doc.font('Helvetica-Bold').fontSize(10);
 
-            doc.font('Helvetica-Bold').text('Technical Skills:');
-            doc.font('Helvetica').text(week.techSkills || 'N/A', options);
-            doc.moveDown(0.5);
+        // Draw Header Box
+        doc.rect(50, tableTop, col1Width, rowHeight).stroke();
+        doc.rect(50 + col1Width, tableTop, col2Width, rowHeight).stroke();
 
-            doc.font('Helvetica-Bold').text('Soft Skills:');
-            doc.font('Helvetica').text(week.softSkills || 'N/A', options);
-            doc.moveDown(0.5);
+        doc.text('Week', 55, tableTop + 5);
+        doc.text('Details', 55 + col1Width, tableTop + 5);
 
-            doc.font('Helvetica-Bold').text('Trainings:');
-            doc.font('Helvetica').text(week.trainings || 'N/A', options);
-            doc.moveDown(1);
+        doc.moveDown(0.8);
+
+        sortedWeeks.forEach((week) => {
+            const startY = doc.y;
+
+            // Render Contents first to measure height
+            doc.font('Helvetica-Bold').fontSize(10);
+            doc.text(`Week ${week.weekNumber}`, 55, startY + 5, { width: col1Width - 10 });
+
+            let currentContentY = startY + 5;
+            const options = { width: col2Width - 10, align: 'justify' };
+
+            doc.text('Activities:', 55 + col1Width, currentContentY);
+            doc.font('Helvetica').text(week.activities || 'N/A', 55 + col1Width, doc.y, options);
+            doc.moveDown(0.2);
+
+            doc.font('Helvetica-Bold').text('Technical Skills:', 55 + col1Width, doc.y);
+            doc.font('Helvetica').text(week.techSkills || 'N/A', 55 + col1Width, doc.y, options);
+            doc.moveDown(0.2);
+
+            doc.font('Helvetica-Bold').text('Soft Skills:', 55 + col1Width, doc.y);
+            doc.font('Helvetica').text(week.softSkills || 'N/A', 55 + col1Width, doc.y, options);
+            doc.moveDown(0.2);
+
+            doc.font('Helvetica-Bold').text('Trainings:', 55 + col1Width, doc.y);
+            doc.font('Helvetica').text(week.trainings || 'N/A', 55 + col1Width, doc.y, options);
+
+            const endY = doc.y + 10;
+            const contentHeight = endY - startY;
+
+            // Draw Borders for this row
+            doc.rect(50, startY, col1Width, contentHeight).stroke();
+            doc.rect(50 + col1Width, startY, col2Width, contentHeight).stroke();
+
+            doc.y = endY;
+
+            // Check if we need a new page
+            if (doc.y > 700) {
+                doc.addPage();
+            }
         });
     } else {
         doc.text('No weekly entries found for this logbook.');
