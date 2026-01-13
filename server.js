@@ -115,9 +115,6 @@ app.get('/api/debug-smtp', async (req, res) => {
     }
 });
 
-app.use('/api/logbooks', require('./routes/logbookRoutes'));
-app.use('/api/submissions', require('./routes/submissionRoutes'));
-
 app.get('/', (req, res) => {
     res.send('API is running...');
 });
