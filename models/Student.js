@@ -54,10 +54,6 @@ const studentSchema = mongoose.Schema({
         enum: ['non-intern', 'intern', 'Completed', 'approved', 'hired', 'not hired'], // Expanded enum to support transition
         default: 'non-intern',
     },
-    academic_mentor: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'AcademicMentor',
-    },
 }, {
     timestamps: true,
 });
