@@ -14,13 +14,18 @@ const academicMentorSchema = mongoose.Schema({
         type: String,
         required: true,
     },
-    email: { // redundant but good for quick access
+    email: {
         type: String,
         required: true,
         unique: true,
     },
     contact_number: {
         type: String,
+    },
+    status: {
+        type: String,
+        enum: ['active', 'inactive'],
+        default: 'active',
     },
 }, {
     timestamps: true,

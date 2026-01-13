@@ -66,6 +66,7 @@ const notificationRoutes = require('./routes/notificationRoutes');
 const logbookRoutes = require('./routes/logbookRoutes');
 const submissionRoutes = require('./routes/submissionRoutes');
 const academicMentorRoutes = require('./routes/academicMentorRoutes');
+const adminRoutes = require('./routes/adminRoutes'); // Added based on the Code Edit snippet
 
 // Routes
 app.use('/api/auth', authRoutes);
@@ -73,12 +74,12 @@ app.use('/api/internships', internshipRoutes);
 app.use('/api/students', studentRoutes);
 app.use('/api/coordinator', coordinatorRoutes);
 app.use('/api/applications', applicationRoutes);
-app.use('/api/placement', placementRoutes);
-app.use('/api/placement', placementRoutes);
+app.use('/api/placements', placementRoutes); // Changed from /api/placement to /api/placements
+app.use('/api/admin', adminRoutes); // Added based on the Code Edit snippet
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/logbooks', logbookRoutes);
 app.use('/api/submissions', submissionRoutes);
-app.use('/api/academic-mentor', academicMentorRoutes);
+app.use('/api/academic-mentor', academicMentorRoutes); // Added based on the instruction
 
 app.get('/api/debug-smtp', async (req, res) => {
     try {

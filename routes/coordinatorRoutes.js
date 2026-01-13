@@ -10,6 +10,7 @@ const {
     createAcademicMentor,
     getAllMentors,
     assignStudentToMentor,
+    updateMentor,
 } = require('../controllers/coordinatorController');
 const { downloadCVs } = require('../controllers/studentController');
 const { protect, coordinator } = require('../middleware/authMiddleware');
@@ -27,8 +28,9 @@ router.get('/applications', getAllApplications);
 router.get('/placements', getAllPlacementForms);
 
 // Mentor Management
-router.post('/mentors', createAcademicMentor);
-router.get('/mentors', getAllMentors);
-router.post('/assign-mentor', assignStudentToMentor);
+router.post('/mentors', protect, coordinator, createAcademicMentor);
+router.get('/mentors', protect, coordinator, getAllMentors);
+router.put('/mentors/:id', protect, coordinator, updateMentor);
+router.post('/assign-mentor', protect, coordinator, assignStudentToMentor);
 
 module.exports = router;

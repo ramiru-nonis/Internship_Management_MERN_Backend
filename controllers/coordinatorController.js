@@ -4,14 +4,15 @@ const Internship = require('../models/Internship');
 const PlacementForm = require('../models/PlacementForm');
 const User = require('../models/User');
 const AcademicMentor = require('../models/AcademicMentor');
+const Student = require('../models/Student'); // Ensure Student is imported if not already
 
-// @desc    Create Academic Mentor
+// @desc    Create Academic Mentor Account
 // @route   POST /api/coordinator/mentors
 // @access  Private (Coordinator/Admin)
 const createAcademicMentor = async (req, res) => {
-    try {
-        const { first_name, last_name, email, password, contact_number } = req.body;
+    const { first_name, last_name, email, password, contact_number } = req.body;
 
+    try {
         const userExists = await User.findOne({ email });
         if (userExists) {
             return res.status(400).json({ message: 'User already exists' });
@@ -32,12 +33,7 @@ const createAcademicMentor = async (req, res) => {
                 contact_number,
             });
 
-            res.status(201).json({
-                _id: user._id,
-                email: user.email,
-                role: user.role,
-                mentor: mentor
-            });
+            res.status(201).json(mentor);
         } else {
             res.status(400).json({ message: 'Invalid user data' });
         }
@@ -62,23 +58,40 @@ const getAllMentors = async (req, res) => {
 // @route   POST /api/coordinator/assign-mentor
 // @access  Private (Coordinator/Admin)
 const assignStudentToMentor = async (req, res) => {
-    try {
-        const { studentId, mentorId } = req.body;
+    const { studentId, mentorId } = req.body;
 
+    try {
         const student = await Student.findById(studentId);
         if (!student) {
             return res.status(404).json({ message: 'Student not found' });
         }
 
-        const mentor = await AcademicMentor.findById(mentorId);
+        student.academic_mentor = mentorId;
+        await student.save();
+
+        res.json({ message: 'Student assigned successfully', student });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+// @desc    Update Mentor Account (edit/deactivate)
+// @route   PUT /api/coordinator/mentors/:id
+// @access  Private (Coordinator/Admin)
+const updateMentor = async (req, res) => {
+    try {
+        const mentor = await AcademicMentor.findById(req.params.id);
         if (!mentor) {
             return res.status(404).json({ message: 'Mentor not found' });
         }
 
-        student.academic_mentor = mentor._id;
-        await student.save();
+        const updatedMentor = await AcademicMentor.findByIdAndUpdate(
+            req.params.id,
+            req.body,
+            { new: true }
+        );
 
-        res.json({ message: 'Student assigned to mentor successfully', student });
+        res.json(updatedMentor);
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
@@ -418,4 +431,5 @@ module.exports = {
     createAcademicMentor,
     getAllMentors,
     assignStudentToMentor,
+    updateMentor,
 };

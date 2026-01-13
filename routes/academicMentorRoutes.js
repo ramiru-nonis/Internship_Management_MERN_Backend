@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const {
     getMentorDashboard,
-    getAssignedStudent,
+    getAssignedStudent
 } = require('../controllers/academicMentorController');
 const { protect, academicMentor } = require('../middleware/authMiddleware');
 
