@@ -4,7 +4,6 @@ const Internship = require('../models/Internship');
 const PlacementForm = require('../models/PlacementForm');
 const User = require('../models/User');
 const AcademicMentor = require('../models/AcademicMentor');
-const Student = require('../models/Student'); // Ensure Student is imported if not already
 
 // @desc    Create Academic Mentor Account
 // @route   POST /api/coordinator/mentors
