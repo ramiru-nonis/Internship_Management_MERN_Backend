@@ -65,6 +65,7 @@ const placementRoutes = require('./routes/placementRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
 const logbookRoutes = require('./routes/logbookRoutes');
 const submissionRoutes = require('./routes/submissionRoutes');
+const academicMentorRoutes = require('./routes/academicMentorRoutes');
 
 // Routes
 app.use('/api/auth', authRoutes);
@@ -77,6 +78,7 @@ app.use('/api/placement', placementRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/logbooks', logbookRoutes);
 app.use('/api/submissions', submissionRoutes);
+app.use('/api/academic-mentor', academicMentorRoutes);
 
 app.get('/api/debug-smtp', async (req, res) => {
     try {

@@ -51,5 +51,13 @@ const student = (req, res, next) => {
     }
 };
 
-module.exports = { protect, admin, coordinator, student };
+const academicMentor = (req, res, next) => {
+    if (req.user && (req.user.role === 'academic_mentor' || req.user.role === 'admin')) {
+        next();
+    } else {
+        res.status(401).json({ message: 'Not authorized as an academic mentor' });
+    }
+};
+
+module.exports = { protect, admin, coordinator, student, academicMentor };
 

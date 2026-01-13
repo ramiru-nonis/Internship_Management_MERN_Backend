@@ -3,6 +3,86 @@ const Application = require('../models/Application');
 const Internship = require('../models/Internship');
 const PlacementForm = require('../models/PlacementForm');
 const User = require('../models/User');
+const AcademicMentor = require('../models/AcademicMentor');
+
+// @desc    Create Academic Mentor
+// @route   POST /api/coordinator/mentors
+// @access  Private (Coordinator/Admin)
+const createAcademicMentor = async (req, res) => {
+    try {
+        const { first_name, last_name, email, password, contact_number } = req.body;
+
+        const userExists = await User.findOne({ email });
+        if (userExists) {
+            return res.status(400).json({ message: 'User already exists' });
+        }
+
+        const user = await User.create({
+            email,
+            password,
+            role: 'academic_mentor',
+        });
+
+        if (user) {
+            const mentor = await AcademicMentor.create({
+                user: user._id,
+                first_name,
+                last_name,
+                email,
+                contact_number,
+            });
+
+            res.status(201).json({
+                _id: user._id,
+                email: user.email,
+                role: user.role,
+                mentor: mentor
+            });
+        } else {
+            res.status(400).json({ message: 'Invalid user data' });
+        }
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+// @desc    Get All Academic Mentors
+// @route   GET /api/coordinator/mentors
+// @access  Private (Coordinator/Admin)
+const getAllMentors = async (req, res) => {
+    try {
+        const mentors = await AcademicMentor.find().populate('user', 'email');
+        res.json(mentors);
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+// @desc    Assign Student to Mentor
+// @route   POST /api/coordinator/assign-mentor
+// @access  Private (Coordinator/Admin)
+const assignStudentToMentor = async (req, res) => {
+    try {
+        const { studentId, mentorId } = req.body;
+
+        const student = await Student.findById(studentId);
+        if (!student) {
+            return res.status(404).json({ message: 'Student not found' });
+        }
+
+        const mentor = await AcademicMentor.findById(mentorId);
+        if (!mentor) {
+            return res.status(404).json({ message: 'Mentor not found' });
+        }
+
+        student.academic_mentor = mentor._id;
+        await student.save();
+
+        res.json({ message: 'Student assigned to mentor successfully', student });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
 
 // @desc    Get dashboard statistics
 // @route   GET /api/coordinator/dashboard
@@ -335,4 +415,7 @@ module.exports = {
     getAllApplications,
     getAllPlacementForms,
     getStudentProfile,
+    createAcademicMentor,
+    getAllMentors,
+    assignStudentToMentor,
 };
