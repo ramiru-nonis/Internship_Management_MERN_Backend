@@ -358,7 +358,9 @@ const getAllPlacementForms = async (req, res) => {
 
 const getStudentProfile = async (req, res) => {
     try {
-        const student = await Student.findById(req.params.id).populate('user', 'email');
+        const student = await Student.findById(req.params.id)
+            .populate('user', 'email')
+            .populate('academic_mentor', 'first_name last_name email');
 
         if (!student) {
             return res.status(404).json({ message: 'Student not found' });
@@ -399,6 +401,64 @@ const getStudentProfile = async (req, res) => {
     }
 };
 
+// @desc    Delete Mentor Account
+// @route   DELETE /api/coordinator/mentors/:id
+// @access  Private (Coordinator/Admin)
+const deleteMentor = async (req, res) => {
+    try {
+        const mentor = await AcademicMentor.findById(req.params.id);
+        if (!mentor) {
+            return res.status(404).json({ message: 'Mentor not found' });
+        }
+
+        // Delete associated User account
+        await User.findByIdAndDelete(mentor.user);
+
+        // Remove mentor from any assigned students
+        await Student.updateMany(
+            { academic_mentor: mentor._id },
+            { $set: { academic_mentor: null } }
+        );
+
+        // Delete the mentor profile
+        await mentor.deleteOne();
+
+        res.json({ message: 'Mentor and associated account deleted successfully' });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+// @desc    Assign Mentor to Student
+// @route   PUT /api/coordinator/students/:id/assign-mentor
+// @access  Private (Coordinator/Admin)
+const assignMentor = async (req, res) => {
+    try {
+        const { mentorId } = req.body;
+        const studentId = req.params.id;
+
+        const student = await Student.findById(studentId);
+        if (!student) {
+            return res.status(404).json({ message: 'Student not found' });
+        }
+
+        if (mentorId) {
+            const mentor = await AcademicMentor.findById(mentorId);
+            if (!mentor) {
+                return res.status(404).json({ message: 'Mentor not found' });
+            }
+            student.academic_mentor = mentorId;
+        } else {
+            student.academic_mentor = null;
+        }
+
+        await student.save();
+        res.json({ message: 'Mentor assigned successfully', student });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
 module.exports = {
     getDashboardStats,
     getAllStudents,
@@ -409,4 +469,6 @@ module.exports = {
     createAcademicMentor,
     getAllMentors,
     updateMentor,
+    deleteMentor,
+    assignMentor,
 };
