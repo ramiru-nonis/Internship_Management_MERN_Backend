@@ -65,6 +65,7 @@ const placementRoutes = require('./routes/placementRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
 const logbookRoutes = require('./routes/logbookRoutes');
 const submissionRoutes = require('./routes/submissionRoutes');
+const mentorRoutes = require('./routes/mentorRoutes');
 
 // Routes
 app.use('/api/auth', authRoutes);
@@ -77,6 +78,7 @@ app.use('/api/placement', placementRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/logbooks', logbookRoutes);
 app.use('/api/submissions', submissionRoutes);
+app.use('/api/mentor', mentorRoutes);
 
 app.get('/api/debug-smtp', async (req, res) => {
     try {
@@ -112,8 +114,7 @@ app.get('/api/debug-smtp', async (req, res) => {
     }
 });
 
-app.use('/api/logbooks', require('./routes/logbookRoutes'));
-app.use('/api/submissions', require('./routes/submissionRoutes'));
+
 
 app.get('/', (req, res) => {
     res.send('API is running...');
