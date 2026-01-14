@@ -138,7 +138,15 @@ exports.getAllSubmissions = async (req, res) => {
         // Fetch ALL submissions
         const allMarksheets = await Marksheet.find().populate('studentId').sort({ createdAt: -1 });
         const allPresentations = await Presentation.find().populate('studentId').sort({ createdAt: -1 });
-        const allPlacements = await PlacementForm.find().populate('student').sort({ createdAt: -1 });
+        const allPlacements = await PlacementForm.find()
+            .populate({
+                path: 'student',
+                populate: {
+                    path: 'user',
+                    select: 'email'
+                }
+            })
+            .sort({ createdAt: -1 });
 
         // Filter to keep only the LATEST submission per student for Marksheet & Presentation
         const latestMarksheets = [];
@@ -244,7 +252,7 @@ exports.getAllSubmissions = async (req, res) => {
             ...uniqueLogbooks.map(l => mapSubmission(l, 'Logbook')),
             ...latestMarksheets.map(m => mapSubmission(m, 'Marksheet')),
             ...latestPresentations.map(p => mapSubmission(p, 'Exit Presentation')),
-            ...allPlacements.map(pl => mapSubmission(pl, 'Placement'))
+            ...allPlacements.map(pl => mapSubmission(pl, 'Placements'))
         ];
 
         res.status(200).json(combined);
