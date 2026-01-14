@@ -132,10 +132,13 @@ exports.getAllSubmissions = async (req, res) => {
         const Student = require('../models/Student');
         const Logbook = require('../models/Logbook');
 
+        const PlacementForm = require('../models/PlacementForm');
+
         const logbooks = await Logbook.find({ status: { $ne: 'Draft' } }).populate('studentId');
         // Fetch ALL submissions
         const allMarksheets = await Marksheet.find().populate('studentId').sort({ createdAt: -1 });
         const allPresentations = await Presentation.find().populate('studentId').sort({ createdAt: -1 });
+        const allPlacements = await PlacementForm.find().populate('student').sort({ createdAt: -1 });
 
         // Filter to keep only the LATEST submission per student for Marksheet & Presentation
         const latestMarksheets = [];
@@ -162,7 +165,8 @@ exports.getAllSubmissions = async (req, res) => {
         const userIds = [
             ...logbooks.map(l => l.studentId?._id),
             ...latestMarksheets.map(m => m.studentId?._id),
-            ...latestPresentations.map(p => p.studentId?._id)
+            ...latestPresentations.map(p => p.studentId?._id),
+            ...allPlacements.map(pl => pl.student?.user)
         ].filter(id => id);
 
         // Fetch Student Profiles
@@ -173,8 +177,15 @@ exports.getAllSubmissions = async (req, res) => {
         });
 
         const mapSubmission = (item, type) => {
-            const user = item.studentId;
-            const student = user ? studentMap[user._id.toString()] : null;
+            let user = item.studentId;
+            let student = null;
+
+            if (type === 'Placement') {
+                student = item.student;
+                user = student?.user;
+            } else {
+                student = user ? studentMap[user._id.toString()] : null;
+            }
 
             return {
                 id: item._id,
@@ -182,14 +193,29 @@ exports.getAllSubmissions = async (req, res) => {
                 name: student ? `${student.first_name} ${student.last_name}` : (user?.username || "Unknown Student"),
                 cbNumber: student?.cb_number || "N/A",
                 profilePicture: student?.profile_picture || null,
-                status: item.status || 'Submitted',
+                status: item.status || (type === 'Placement' ? 'Submitted' : 'Submitted'),
                 date: item.submittedDate || item.createdAt, // Fallback to createdAt
                 scheduledDate: item.scheduledDate || null,
                 meetLink: item.meetLink || null,
                 fileUrl: item.fileUrl,
                 month: item.month ? `${MONTH_NAMES[item.month - 1]} ${item.year}` : undefined,
                 logbookId: type === 'Logbook' ? item._id : undefined,
-                studentId: user?._id // Include user ID for history fetching
+                studentId: user?._id || user, // Include user ID for history fetching
+                // Additional fields for Placement Details
+                placement: type === 'Placement' ? {
+                    company_name: item.company_name,
+                    position: item.position || item.placement_job_title,
+                    start_date: item.start_date,
+                    end_date: item.end_date,
+                    mentor_name: item.mentor_name,
+                    mentor_email: item.mentor_email,
+                    mentor_phone: item.mentor_phone,
+                    company_address: item.company_address,
+                    description: item.description,
+                    placement_job_title: item.placement_job_title,
+                    contact_number: student?.contact_number,
+                    email: student?.user?.email || item.email
+                } : undefined
             };
         };
 
@@ -217,7 +243,8 @@ exports.getAllSubmissions = async (req, res) => {
         const combined = [
             ...uniqueLogbooks.map(l => mapSubmission(l, 'Logbook')),
             ...latestMarksheets.map(m => mapSubmission(m, 'Marksheet')),
-            ...latestPresentations.map(p => mapSubmission(p, 'Exit Presentation'))
+            ...latestPresentations.map(p => mapSubmission(p, 'Exit Presentation')),
+            ...allPlacements.map(pl => mapSubmission(pl, 'Placement'))
         ];
 
         res.status(200).json(combined);
