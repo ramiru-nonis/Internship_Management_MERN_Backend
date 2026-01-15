@@ -350,7 +350,8 @@ exports.getStudentSubmissions = async (req, res) => {
                 total: expectedTotal, // Send EXPECTED total to frontend
                 approved: approvedLogbooks,
                 actualTotal: totalLogbooks
-            }
+            },
+            combinedLogbookUrl: studentProfile?.combinedLogbookUrl || null
         });
     } catch (error) {
         res.status(500).json({ message: 'Error fetching student submissions', error });
