@@ -450,6 +450,24 @@ exports.downloadLogbookPDF = async (req, res) => {
         const studentData = await Student.findOne({ user: logbook.studentId });
         if (!studentData) return res.status(404).json({ message: 'Student profile not found' });
 
+        // If a signed PDF exists, serve it
+        if (logbook.signedPDFPath) {
+            if (logbook.signedPDFPath.startsWith('http')) {
+                // If it's a URL (Cloudinary), redirect to it
+                return res.redirect(logbook.signedPDFPath);
+            } else {
+                // If it's a local file path
+                const fullPath = path.isAbsolute(logbook.signedPDFPath)
+                    ? logbook.signedPDFPath
+                    : path.join(__dirname, '..', logbook.signedPDFPath);
+
+                if (fs.existsSync(fullPath)) {
+                    return res.download(fullPath, `Signed_Logbook_${studentData.cb_number}_Month_${logbook.month}.pdf`);
+                }
+            }
+        }
+
+        // Fallback: Generate PDF from data
         res.setHeader('Content-Type', 'application/pdf');
         res.setHeader('Content-Disposition', `attachment; filename=Logbook_${studentData.cb_number}_Month_${logbook.month}.pdf`);
 
@@ -474,7 +492,8 @@ exports.uploadSignedLogbook = async (req, res) => {
         }
 
         // Save path (handle local vs cloudinary)
-        const filePath = req.file.path || req.file.secure_url;
+        const rawPath = req.file.path || req.file.secure_url;
+        const filePath = rawPath.replace(/\\/g, '/');
         logbook.signedPDFPath = filePath;
 
         // Add to audit log
