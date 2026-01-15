@@ -525,42 +525,33 @@ exports.downloadLogbookPDF = async (req, res) => {
                         console.error("Cloudinary Response Status:", proxyError.response.status);
                     }
 
-                    // Fallback: Redirect to the URL directly? 
-                    // If backend fails, maybe client can access it (if it was IP blocked on server but okay on client?)
-                    // But if client also failed (hence this feature), we are stuck.
-                    // Let's try to Generate a Signed URL strictly as last resort.
+                    // Fallback: Redirect to client-side
+                    console.warn("Proxy failed, redirecting client to signed Cloudinary URL.");
                     try {
                         const cloudinary = require('../config/cloudinary').cloudinary;
-                        // Extract public ID logic again...
                         const parts = logbook.signedPDFPath.split('/upload/');
                         if (parts.length === 2) {
                             const rightPart = parts[1];
                             const idParts = rightPart.split('/');
                             if (idParts[0].startsWith('v')) idParts.shift();
-                            const publicId = idParts.join('/'); // includes extension usually for Raw
+                            const publicId = idParts.join('/');
 
-                            // RAW resource type usually
-                            const signedUrl = cloudinary.utils.private_download_url(publicId, 'pdf', {
+                            // Generate Signed URL for Client Redirect
+                            // We use type: 'authenticated' to ensure access to private files
+                            const signedUrl = cloudinary.url(publicId, {
                                 resource_type: 'raw',
-                                type: 'authenticated' // Try 'train'ing it as authenticated
+                                type: 'authenticated',
+                                sign_url: true,
+                                secure: true
                             });
-                            console.log("Attempting Retry with Signed URL:", signedUrl);
-
-                            const response2 = await axios({
-                                method: 'get',
-                                url: signedUrl || logbook.signedPDFPath,
-                                responseType: 'stream',
-                                timeout: 15000
-                            });
-                            res.setHeader('Content-Type', 'application/pdf');
-                            res.setHeader('Content-Disposition', `inline; filename="Signed_Logbook_Retry.pdf"`);
-                            response2.data.pipe(res);
-                            return;
+                            console.log("[DEBUG] Redirecting to:", signedUrl);
+                            return res.redirect(signedUrl);
                         }
-                    } catch (retryError) {
-                        console.error("Retry with signed URL failed:", retryError.message);
+                    } catch (e) {
+                        console.error("Redirect generation failed:", e);
                     }
 
+                    // Final fallback if redirect fails
                     return res.status(502).json({
                         message: "Failed to retrieve signed logbook from cloud storage.",
                         detail: proxyError.message
