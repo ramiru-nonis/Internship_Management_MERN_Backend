@@ -382,9 +382,8 @@ const getStudentProfile = async (req, res) => {
         const marksheet = await Marksheet.findOne({ studentId: student.user._id }).sort({ createdAt: -1 });
         const presentation = await Presentation.findOne({ studentId: student.user._id }).sort({ createdAt: -1 });
         const logbooks = await Logbook.find({ studentId: student.user._id });
-        const latestApprovedLogbook = await Logbook.findOne({
-            studentId: student.user._id,
-            status: 'Approved'
+        const latestLogbook = await Logbook.findOne({
+            studentId: student.user._id
         }).sort({ year: -1, month: -1 });
 
         res.json({
@@ -397,8 +396,7 @@ const getStudentProfile = async (req, res) => {
                 logbooks: {
                     total: logbooks.length,
                     approved: logbooks.filter(lb => lb.status === 'Approved').length,
-                    latestApprovedUrl: latestApprovedLogbook ? latestApprovedLogbook.signedPDFPath : null,
-                    latestApprovedId: latestApprovedLogbook ? latestApprovedLogbook._id : null
+                    currentLogbookId: latestLogbook ? latestLogbook._id : null
                 }
             }
         });
