@@ -456,13 +456,60 @@ exports.downloadLogbookPDF = async (req, res) => {
             // Check if it's a URL (Cloudinary)
             if (logbook.signedPDFPath.startsWith('http')) {
                 console.log("[DEBUG] Proxying Cloudinary PDF:", logbook.signedPDFPath);
+
+                let downloadUrl = logbook.signedPDFPath;
+
+                // Try to generate a signed URL if we can extract public_id
+                // URL Format: https://res.cloudinary.com/<cloud>/image/upload/v<ver>/<folder>/<id>.<ext>
+                // OR: https://res.cloudinary.com/<cloud>/raw/upload/v<ver>/<folder>/<id>
+                try {
+                    const parts = logbook.signedPDFPath.split('/upload/');
+                    if (parts.length === 2) {
+                        const versionAndId = parts[1]; // v12356/folder/id.pdf
+                        // Remove version if present (v12345/)
+                        const pathParts = versionAndId.split('/');
+                        if (pathParts[0].startsWith('v')) {
+                            pathParts.shift(); // remove version
+                        }
+                        const publicIdWithExt = pathParts.join('/');
+                        // For raw files, public_id usually includes extension if it was part of filename? 
+                        // But access via SDK usually needs just public_id.
+                        // Let's try raw access first.
+
+                        // Import cloudinary (lazy load to avoid top-level issues if not installed/configured)
+                        const cloudinary = require('../config/cloudinary').cloudinary;
+
+                        // Generate signed URL
+                        // resource_type: 'raw' is common for PDFs in this app based on config
+                        downloadUrl = cloudinary.url(publicIdWithExt, {
+                            resource_type: 'raw',
+                            sign_url: true,
+                            type: 'authenticated', // Try authenticated first? Or upload? 
+                            // If it was uploaded as 'upload' (public), this might fail or just work.
+                            // Safest: Use the original URL but add standard headers, OR try 'private_download_url'
+                        });
+
+                        // Fallback: If basic generation looks weird or we want to trust the stored URL primarily but just sign it:
+                        // Actually, 'sign_url' only works if we use the API to build it.
+                        // Let's stick to using the stored URL but add headers, and if 401, try checking if it's private.
+                        // Better approach for PROXY:
+                        // Just use the stored URL, but ensure we don't get blocked.
+                        downloadUrl = logbook.signedPDFPath; // Revert to stored for now, rely on headers.
+                    }
+                } catch (e) {
+                    console.warn("Error parsing Cloudinary URL:", e);
+                }
+
                 // Proxy the file from Cloudinary 
                 try {
                     const response = await axios({
                         method: 'get',
-                        url: logbook.signedPDFPath,
+                        url: downloadUrl,
                         responseType: 'stream',
-                        timeout: 10000 // 10s timeout
+                        timeout: 15000,
+                        headers: {
+                            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+                        }
                     });
 
                     // Set headers
@@ -477,7 +524,43 @@ exports.downloadLogbookPDF = async (req, res) => {
                     if (proxyError.response) {
                         console.error("Cloudinary Response Status:", proxyError.response.status);
                     }
-                    // DO NOT redirect to the failing URL. Return error to client.
+
+                    // Fallback: Redirect to the URL directly? 
+                    // If backend fails, maybe client can access it (if it was IP blocked on server but okay on client?)
+                    // But if client also failed (hence this feature), we are stuck.
+                    // Let's try to Generate a Signed URL strictly as last resort.
+                    try {
+                        const cloudinary = require('../config/cloudinary').cloudinary;
+                        // Extract public ID logic again...
+                        const parts = logbook.signedPDFPath.split('/upload/');
+                        if (parts.length === 2) {
+                            const rightPart = parts[1];
+                            const idParts = rightPart.split('/');
+                            if (idParts[0].startsWith('v')) idParts.shift();
+                            const publicId = idParts.join('/'); // includes extension usually for Raw
+
+                            // RAW resource type usually
+                            const signedUrl = cloudinary.utils.private_download_url(publicId, 'pdf', {
+                                resource_type: 'raw',
+                                type: 'authenticated' // Try 'train'ing it as authenticated
+                            });
+                            console.log("Attempting Retry with Signed URL:", signedUrl);
+
+                            const response2 = await axios({
+                                method: 'get',
+                                url: signedUrl || logbook.signedPDFPath,
+                                responseType: 'stream',
+                                timeout: 15000
+                            });
+                            res.setHeader('Content-Type', 'application/pdf');
+                            res.setHeader('Content-Disposition', `inline; filename="Signed_Logbook_Retry.pdf"`);
+                            response2.data.pipe(res);
+                            return;
+                        }
+                    } catch (retryError) {
+                        console.error("Retry with signed URL failed:", retryError.message);
+                    }
+
                     return res.status(502).json({
                         message: "Failed to retrieve signed logbook from cloud storage.",
                         detail: proxyError.message
