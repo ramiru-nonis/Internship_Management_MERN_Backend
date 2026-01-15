@@ -12,14 +12,16 @@ const createDir = (dir) => {
 // Local Storage Configuration
 const localStorage = multer.diskStorage({
     destination: function (req, file, cb) {
-        let uploadPath = 'uploads/';
+        const uploadRoot = path.join(__dirname, '..', 'uploads');
+        let subFolder = '';
         if (file.fieldname === 'cv') {
-            uploadPath += 'cv';
+            subFolder = 'cv';
         } else if (file.fieldname === 'profile_picture') {
-            uploadPath += 'profile';
+            subFolder = 'profile';
         } else if (file.fieldname === 'signed_logbook') {
-            uploadPath += 'logbooks';
+            subFolder = 'logbooks';
         }
+        const uploadPath = path.join(uploadRoot, subFolder);
         createDir(uploadPath);
         cb(null, uploadPath);
     },
