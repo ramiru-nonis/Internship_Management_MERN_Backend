@@ -429,18 +429,7 @@ exports.uploadSignedLogbook = async (req, res) => {
         }
 
         // Save path (handle local vs cloudinary)
-        let filePath = req.file.path || req.file.secure_url;
-
-        // Robust path normalization for storage
-        if (filePath && !filePath.startsWith('http')) {
-            const path = require('path');
-            const uploadRoot = path.join(__dirname, '..', 'uploads');
-            // Extract path relative to uploads folder
-            filePath = path.relative(uploadRoot, filePath);
-            // Replace any Windows backslashes with forward slashes for URL consistency
-            filePath = filePath.replace(/\\/g, '/');
-        }
-
+        const filePath = req.file.path || req.file.secure_url;
         logbook.signedPDFPath = filePath;
 
         // Add to audit log
