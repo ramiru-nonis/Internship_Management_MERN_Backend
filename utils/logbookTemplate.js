@@ -26,58 +26,80 @@ const generateLogbookPDF = (logbook, studentData, res) => {
 
         // Table Header
         const tableTop = doc.y;
-        const col1Width = 60;
-        const col2Width = 440;
-        const rowHeight = 20;
+        const colWidths = {
+            week: 40,
+            activities: 125,
+            tech: 110,
+            soft: 110,
+            trainings: 115
+        };
+        const startX = 50;
+        const colPositions = {
+            week: startX,
+            activities: startX + colWidths.week,
+            tech: startX + colWidths.week + colWidths.activities,
+            soft: startX + colWidths.week + colWidths.activities + colWidths.tech,
+            trainings: startX + colWidths.week + colWidths.activities + colWidths.tech + colWidths.soft
+        };
+        const rowHeight = 25;
 
-        doc.font('Helvetica-Bold').fontSize(10);
+        doc.font('Helvetica-Bold').fontSize(9);
 
-        // Draw Header Box
-        doc.rect(50, tableTop, col1Width, rowHeight).stroke();
-        doc.rect(50 + col1Width, tableTop, col2Width, rowHeight).stroke();
+        // Draw Header Boxes and Text
+        Object.keys(colWidths).forEach(key => {
+            doc.rect(colPositions[key], tableTop, colWidths[key], rowHeight).stroke();
+        });
 
-        doc.text('Week', 55, tableTop + 5);
-        doc.text('Details', 55 + col1Width, tableTop + 5);
+        doc.text('Week', colPositions.week + 5, tableTop + 7, { width: colWidths.week - 10, align: 'center' });
+        doc.text('Activities', colPositions.activities + 5, tableTop + 7, { width: colWidths.activities - 10, align: 'center' });
+        doc.text('Technical Skills', colPositions.tech + 5, tableTop + 7, { width: colWidths.tech - 10, align: 'center' });
+        doc.text('Soft Skills', colPositions.soft + 5, tableTop + 7, { width: colWidths.soft - 10, align: 'center' });
+        doc.text('Trainings', colPositions.trainings + 5, tableTop + 7, { width: colWidths.trainings - 10, align: 'center' });
 
-        doc.moveDown(0.8);
+        doc.y = tableTop + rowHeight;
 
         sortedWeeks.forEach((week) => {
             const startY = doc.y;
+            doc.font('Helvetica').fontSize(8);
 
-            // Render Contents first to measure height
-            doc.font('Helvetica-Bold').fontSize(10);
-            doc.text(`Week ${week.weekNumber}`, 55, startY + 5, { width: col1Width - 10 });
+            // Calculate heights for each column content
+            const weekText = `Week ${week.weekNumber}`;
+            const activitiesText = week.activities || 'N/A';
+            const techText = week.techSkills || 'N/A';
+            const softText = week.softSkills || 'N/A';
+            const trainingsText = week.trainings || 'N/A';
 
-            let currentContentY = startY + 5;
-            const options = { width: col2Width - 10, align: 'justify' };
+            const options = (width) => ({ width: width - 10, align: 'left' });
 
-            doc.text('Activities:', 55 + col1Width, currentContentY);
-            doc.font('Helvetica').text(week.activities || 'N/A', 55 + col1Width, doc.y, options);
-            doc.moveDown(0.2);
+            // We need to find the max height among all columns
+            const heights = [
+                doc.heightOfString(weekText, options(colWidths.week)),
+                doc.heightOfString(activitiesText, options(colWidths.activities)),
+                doc.heightOfString(techText, options(colWidths.tech)),
+                doc.heightOfString(softText, options(colWidths.soft)),
+                doc.heightOfString(trainingsText, options(colWidths.trainings))
+            ];
+            const maxHeight = Math.max(...heights) + 10;
 
-            doc.font('Helvetica-Bold').text('Technical Skills:', 55 + col1Width, doc.y);
-            doc.font('Helvetica').text(week.techSkills || 'N/A', 55 + col1Width, doc.y, options);
-            doc.moveDown(0.2);
-
-            doc.font('Helvetica-Bold').text('Soft Skills:', 55 + col1Width, doc.y);
-            doc.font('Helvetica').text(week.softSkills || 'N/A', 55 + col1Width, doc.y, options);
-            doc.moveDown(0.2);
-
-            doc.font('Helvetica-Bold').text('Trainings:', 55 + col1Width, doc.y);
-            doc.font('Helvetica').text(week.trainings || 'N/A', 55 + col1Width, doc.y, options);
-
-            const endY = doc.y + 10;
-            const contentHeight = endY - startY;
+            // Draw content
+            doc.text(weekText, colPositions.week + 5, startY + 5, options(colWidths.week));
+            doc.text(activitiesText, colPositions.activities + 5, startY + 5, options(colWidths.activities));
+            doc.text(techText, colPositions.tech + 5, startY + 5, options(colWidths.tech));
+            doc.text(softText, colPositions.soft + 5, startY + 5, options(colWidths.soft));
+            doc.text(trainingsText, colPositions.trainings + 5, startY + 5, options(colWidths.trainings));
 
             // Draw Borders for this row
-            doc.rect(50, startY, col1Width, contentHeight).stroke();
-            doc.rect(50 + col1Width, startY, col2Width, contentHeight).stroke();
+            Object.keys(colWidths).forEach(key => {
+                doc.rect(colPositions[key], startY, colWidths[key], maxHeight).stroke();
+            });
 
-            doc.y = endY;
+            doc.y = startY + maxHeight;
 
             // Check if we need a new page
             if (doc.y > 700) {
                 doc.addPage();
+                // Redraw headers on new page if necessary (optional but good)
+                // For simplicity, just continue
             }
         });
     } else {
