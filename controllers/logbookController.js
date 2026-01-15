@@ -527,28 +527,90 @@ exports.downloadLogbookPDF = async (req, res) => {
 
                     // Fallback: Redirect to client-side
                     console.warn("Proxy failed, redirecting client to signed Cloudinary URL.");
+                    // Fallback: Redirect to client-side
+                    console.warn("Proxy failed, redirecting client to signed Cloudinary URL.");
                     try {
-                        const cloudinary = require('../config/cloudinary').cloudinary;
-                        const parts = logbook.signedPDFPath.split('/upload/');
-                        if (parts.length === 2) {
-                            const rightPart = parts[1];
-                            const idParts = rightPart.split('/');
-                            if (idParts[0].startsWith('v')) idParts.shift();
-                            const publicId = idParts.join('/');
+                         const cloudinary = require('../config/cloudinary').cloudinary;
+                         // Robust URL Parsing to extract correct parameters
+                         // Expected format: https://res.cloudinary.com/<cloud>/<resource_type>/<type>/v<version>/<public_id>
+                         const urlObj = new URL(logbook.signedPDFPath);
+                         const pathSegments = urlObj.pathname.split('/'); 
+                         // pathSegments[0] is empty string because pathname starts with /
+                         
+                         // We need to find where 'v<number>' is to assume everything after is public_id
+                         // And bits before are type/resource_type
+                         
+                         // Typical segments: [ '', 'cloudname', 'image', 'upload', 'v12345', 'folder', 'file.pdf' ]
+                         // OR: [ '', 'cloudname', 'raw', 'upload', 'v12345', 'folder', 'file.pdf' ]
+                         
+                         let resourceType = 'auto';
+                         let deliveryType = 'upload';
+                         let publicId = '';
+                         let versionIndex = -1;
 
-                            // Generate Signed URL for Client Redirect
-                            // We use type: 'authenticated' to ensure access to private files
-                            const signedUrl = cloudinary.url(publicId, {
-                                resource_type: 'raw',
-                                type: 'authenticated',
+                         // Find version segment (starts with 'v' followed by numbers)
+                         for(let i=0; i<pathSegments.length; i++) {
+                             if(pathSegments[i].match(/^v\d+$/)) {
+                                 versionIndex = i;
+                                 break;
+                             }
+                         }
+
+                         if (versionIndex !== -1) {
+                             // resource_type is likely at versionIndex - 2
+                             // type is likely at versionIndex - 1
+                             if (versionIndex >= 3) {
+                                 resourceType = pathSegments[versionIndex - 2]; // e.g. 'image' or 'raw'
+                                 deliveryType = pathSegments[versionIndex - 1]; // e.g. 'upload' or 'authenticated'
+                             }
+                             
+                             // public_id is everything after version
+                             publicId = pathSegments.slice(versionIndex + 1).join('/');
+                         } else {
+                             // Fallback for URLs without version (less common but possible)
+                             // Trying to guess based on 'upload' or 'authenticated' keyword
+                             const typeIndex = pathSegments.findIndex(s => s === 'upload' || s === 'authenticated' || s === 'private');
+                             if (typeIndex !== -1) {
+                                 deliveryType = pathSegments[typeIndex];
+                                 resourceType = pathSegments[typeIndex - 1];
+                                 publicId = pathSegments.slice(typeIndex + 1).join('/');
+                             }
+                         }
+
+                         if (publicId) {
+                             // Handle extension oddities
+                             // If resource_type is 'image' (which Cloudinary uses for PDFs often if auto), 
+                             // the public_id usually shouldn't include extension for manipulation, 
+                             // BUT for signed URLs it's safer to use it as is if we want the original file.
+                             // Actually, cloudinary.url() with resource_type 'image' will append format.
+                             // parsing 'file.pdf' -> public_id 'file.pdf' -> url 'file.pdf.pdf' (maybe)
+                             // So if image and ends with extension, strict strip?
+                             
+                             if (resourceType === 'image' && publicId.toLowerCase().endsWith('.pdf')) {
+                                 // Strip extension for image type to avoid double extension
+                                 publicId = publicId.replace(/\.pdf$/i, '');
+                             }
+
+                             // Generate Signed URL
+                             const signedUrl = cloudinary.url(publicId, {
+                                resource_type: resourceType, 
+                                type: deliveryType,
                                 sign_url: true,
-                                secure: true
-                            });
-                            console.log("[DEBUG] Redirecting to:", signedUrl);
-                            return res.redirect(signedUrl);
-                        }
+                                secure: true,
+                                format: (resourceType === 'image') ? 'pdf' : undefined // Ensure PDF format if image
+                             });
+                             
+                             console.log(`[DEBUG] Redirecting to signed URL. Parsed: Type=${resourceType}/${deliveryType}, ID=${publicId}`);
+                             return res.redirect(signedUrl);
+                         } else {
+                             console.warn("Could not parse Cloudinary URL structure:", logbook.signedPDFPath);
+                             // Fallback: Just redirect to original URL if all else fails
+                             return res.redirect(logbook.signedPDFPath);
+                         }
                     } catch (e) {
                         console.error("Redirect generation failed:", e);
+                        // Last ditch: redirect to original
+                        return res.redirect(logbook.signedPDFPath);
                     }
 
                     // Final fallback if redirect fails
