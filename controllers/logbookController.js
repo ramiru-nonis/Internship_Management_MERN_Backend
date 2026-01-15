@@ -443,6 +443,7 @@ exports.getHistory = async (req, res) => {
 exports.downloadLogbookPDF = async (req, res) => {
     try {
         const { generateLogbookPDF } = require('../utils/logbookTemplate');
+        const axios = require('axios'); // Ensure axios is required
 
         const logbook = await Logbook.findById(req.params.id);
         if (!logbook) return res.status(404).json({ message: 'Logbook not found' });
@@ -453,8 +454,24 @@ exports.downloadLogbookPDF = async (req, res) => {
         // If a signed PDF exists, serve it
         if (logbook.signedPDFPath) {
             if (logbook.signedPDFPath.startsWith('http')) {
-                // If it's a URL (Cloudinary), redirect to it
-                return res.redirect(logbook.signedPDFPath);
+                // Proxy the file from Cloudinary to avoid CORS/401 issues on client
+                try {
+                    const response = await axios({
+                        method: 'get',
+                        url: logbook.signedPDFPath,
+                        responseType: 'stream'
+                    });
+
+                    res.setHeader('Content-Type', 'application/pdf');
+                    res.setHeader('Content-Disposition', `inline; filename="Signed_Logbook_${studentData.cb_number}_Month_${logbook.month}.pdf"`);
+
+                    response.data.pipe(res);
+                    return;
+                } catch (proxyError) {
+                    console.error("Error proxying PDF from Cloudinary:", proxyError);
+                    // Fallback to client redirect if proxy fails (though likely will fail same way if auth issue)
+                    return res.redirect(logbook.signedPDFPath);
+                }
             } else {
                 // If it's a local file path
                 const fullPath = path.isAbsolute(logbook.signedPDFPath)
@@ -462,12 +479,16 @@ exports.downloadLogbookPDF = async (req, res) => {
                     : path.join(__dirname, '..', logbook.signedPDFPath);
 
                 if (fs.existsSync(fullPath)) {
-                    return res.download(fullPath, `Signed_Logbook_${studentData.cb_number}_Month_${logbook.month}.pdf`);
+                    // Use sendFile/download so we can set Content-Type
+                    res.setHeader('Content-Type', 'application/pdf');
+                    // inline for view, attachment for download. Using inline for viewer compatibility.
+                    res.setHeader('Content-Disposition', `inline; filename="Signed_Logbook_${studentData.cb_number}_Month_${logbook.month}.pdf"`);
+                    return res.sendFile(fullPath);
                 }
             }
         }
 
-        // Fallback: Generate PDF from data
+        // Fallback: Generate PDF from data if no signed PDF
         res.setHeader('Content-Type', 'application/pdf');
         res.setHeader('Content-Disposition', `attachment; filename=Logbook_${studentData.cb_number}_Month_${logbook.month}.pdf`);
 
