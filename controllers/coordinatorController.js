@@ -576,15 +576,18 @@ const getCompletedStudentsForMarks = async (req, res) => {
         // Fetch completed students
         const students = await Student.find(query)
             .populate('user', 'email')
-            .populate('academic_mentor', 'first_name last_name')
+            .populate('academic_mentor', 'first_name last_name email')
             .sort({ createdAt: -1 })
             .lean();
 
-        // Fetch marksheets for these students
-        const studentIds = students.map(s => s.user?._id);
+        // Fetch marksheets for these students (only academic mentor marksheets)
+        const studentUserIds = students.map(s => s.user?._id);
         const marksheets = await Marksheet.find({
-            studentId: { $in: studentIds }
-        }).lean();
+            studentId: { $in: studentUserIds },
+            mentorId: { $exists: true } // Only academic mentor marksheets
+        })
+            .populate('mentorId', 'first_name last_name email')
+            .lean();
 
         const marksheetMap = {};
         marksheets.forEach(m => {
@@ -603,13 +606,22 @@ const getCompletedStudentsForMarks = async (req, res) => {
     }
 };
 
-// @desc    Save or update final marks for a student
+// @desc    Save or update final marks for a student (with industry mentor marks)
 // @route   POST /api/coordinator/final-marks/:studentId
 // @access  Private (Coordinator/Admin)
 const saveFinalMarks = async (req, res) => {
     try {
         const { studentId } = req.params;
-        const { technical, softSkills, presentation, comments } = req.body;
+        const { industryMentorMarks } = req.body;
+
+        // Validate industry mentor marks
+        if (industryMentorMarks === undefined || industryMentorMarks === null) {
+            return res.status(400).json({ message: 'Industry mentor marks are required' });
+        }
+
+        if (industryMentorMarks < 0 || industryMentorMarks > 40) {
+            return res.status(400).json({ message: 'Industry mentor marks must be between 0 and 40' });
+        }
 
         // Find student
         const student = await Student.findById(studentId);
@@ -624,40 +636,42 @@ const saveFinalMarks = async (req, res) => {
 
         const userId = student.user;
 
-        // Find or create marksheet
-        let marksheet = await Marksheet.findOne({ studentId: userId });
+        // Find the academic mentor marksheet (should already exist)
+        let marksheet = await Marksheet.findOne({ studentId: userId, mentorId: { $exists: true } });
 
         if (!marksheet) {
-            marksheet = new Marksheet({
-                studentId: userId,
-                fileUrl: '', // Placeholder, can be updated later
-                marks: {
-                    technical: technical || 0,
-                    softSkills: softSkills || 0,
-                    presentation: presentation || 0,
-                    total: (technical || 0) + (softSkills || 0) + (presentation || 0)
-                },
-                comments: comments || {}
-            });
-        } else {
-            // Update existing marksheet
-            marksheet.marks = {
-                technical: technical || marksheet.marks?.technical || 0,
-                softSkills: softSkills || marksheet.marks?.softSkills || 0,
-                presentation: presentation || marksheet.marks?.presentation || 0,
-                total: (technical || marksheet.marks?.technical || 0) + (softSkills || marksheet.marks?.softSkills || 0) + (presentation || marksheet.marks?.presentation || 0)
-            };
-            if (comments) {
-                marksheet.comments = comments;
-            }
+            return res.status(404).json({ message: 'Academic mentor marksheet not found. Academic mentor must submit marksheet first.' });
         }
+
+        // Calculate final marks: Academic Mentor Total (out of 60) + Industry Mentor Marks (out of 40) = Total out of 100
+        const academicTotal = marksheet.marks?.total || 0;
+        const finalMarks = academicTotal + industryMentorMarks;
+
+        // Update marksheet with industry mentor marks and final marks
+        marksheet.industryMentorMarks = industryMentorMarks;
+        marksheet.finalMarks = finalMarks;
+        marksheet.finalMarksSubmitted = true;
+        marksheet.finalMarksSubmittedAt = new Date();
 
         await marksheet.save();
 
         // Populate and return the updated marksheet
         await marksheet.populate('studentId', 'email');
+        await marksheet.populate('mentorId', 'first_name last_name email');
 
-        res.json({ message: 'Final marks saved successfully', marksheet });
+        res.json({ 
+            message: 'Final marks saved successfully', 
+            marksheet,
+            breakdown: {
+                academicMentorMarks: academicTotal,
+                industryMentorMarks: industryMentorMarks,
+                totalFinalMarks: finalMarks
+            }
+        });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
     } catch (error) {
         res.status(500).json({ message: error.message });
     }

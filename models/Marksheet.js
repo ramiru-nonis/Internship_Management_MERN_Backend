@@ -29,6 +29,27 @@ const marksheetSchema = new mongoose.Schema({
         technical: String,
         softSkills: String,
         presentation: String
+    },
+    // Industry Mentor Marks (Coordinator Input)
+    industryMentorMarks: {
+        type: Number,
+        min: 0,
+        max: 40,
+        default: 0
+    },
+    // Final Marks (Calculated: Academic Mentor Total + Industry Mentor Marks)
+    finalMarks: {
+        type: Number,
+        default: 0
+    },
+    // Track if final marks have been submitted by coordinator
+    finalMarksSubmitted: {
+        type: Boolean,
+        default: false
+    },
+    finalMarksSubmittedAt: {
+        type: Date,
+        default: null
     }
 }, { timestamps: true });
 
