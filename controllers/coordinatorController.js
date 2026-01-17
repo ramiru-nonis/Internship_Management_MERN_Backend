@@ -553,6 +553,78 @@ const bulkAssignMentor = async (req, res) => {
     }
 };
 
+// @desc    Get all students with status 'Completed' for final marking
+// @route   GET /api/coordinator/students/completed
+// @access  Private (Coordinator)
+const getCompletedStudents = async (req, res) => {
+    try {
+        const students = await Student.find({ status: 'Completed' })
+            .populate('user', 'email')
+            .sort({ createdAt: -1 });
+
+        const Marksheet = require('../models/Marksheet');
+
+        const studentUserIds = students.map(s => s.user._id);
+        const marksheets = await Marksheet.find({ studentId: { $in: studentUserIds } });
+
+        const studentsWithStatus = students.map(s => {
+            const marksheet = marksheets.find(m => m.studentId.toString() === s.user._id.toString());
+            return {
+                ...s.toObject(),
+                academicMarks: marksheet ? marksheet.marks : null,
+                hasFinalMarks: !!(marksheet && marksheet.finalMarks !== undefined)
+            };
+        });
+
+        res.json(studentsWithStatus);
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+// @desc    Submit Final Marks (Industry + Academic)
+// @route   POST /api/coordinator/final-marks
+// @access  Private (Coordinator)
+const submitFinalMarks = async (req, res) => {
+    try {
+        const { studentId, industryMarks, industryComments } = req.body;
+
+        if (industryMarks === undefined || industryMarks < 0 || industryMarks > 40) {
+            return res.status(400).json({ message: 'Valid Industry Marks (0-40) are required' });
+        }
+
+        const student = await Student.findById(studentId);
+        if (!student) {
+            return res.status(404).json({ message: 'Student not found' });
+        }
+
+        const Marksheet = require('../models/Marksheet');
+
+        const marksheet = await Marksheet.findOne({
+            studentId: student.user,
+            mentorId: { $exists: true }
+        });
+
+        if (!marksheet || !marksheet.marks) {
+            return res.status(400).json({ message: 'Academic Mentor marks not found. Cannot calculate final marks.' });
+        }
+
+        const academicTotal = marksheet.marks.total || 0;
+        const finalTotal = academicTotal + Number(industryMarks);
+
+        marksheet.industryMarks = industryMarks;
+        marksheet.industryComments = industryComments;
+        marksheet.finalMarks = finalTotal;
+        marksheet.isPublished = true;
+
+        await marksheet.save();
+
+        res.json({ message: 'Final marks submitted successfully', marksheet });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
 module.exports = {
     getDashboardStats,
     getAllStudents,
@@ -566,4 +638,6 @@ module.exports = {
     deleteMentor,
     assignMentor,
     bulkAssignMentor,
+    getCompletedStudents,
+    submitFinalMarks
 };
