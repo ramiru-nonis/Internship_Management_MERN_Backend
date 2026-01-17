@@ -2,6 +2,9 @@ const AcademicMentor = require('../models/AcademicMentor');
 const Student = require('../models/Student');
 const Application = require('../models/Application');
 const PlacementForm = require('../models/PlacementForm');
+const path = require('path');
+const fs = require('fs');
+const { generateMarksheetPDF } = require('../utils/pdfGenerator');
 
 // @desc    Get students assigned to the logged-in mentor
 // @route   GET /api/mentor/students
@@ -89,52 +92,71 @@ const getStudentProfile = async (req, res) => {
     }
 };
 
-// @desc    Upload Marksheet
+// @desc    Submit marks and generate Marksheet PDF
 // @route   POST /api/mentor/marksheet
 // @access  Private (Academic Mentor)
-const uploadMarksheet = async (req, res) => {
+const submitMarksheet = async (req, res) => {
     try {
-        if (!req.file) {
-            return res.status(400).json({ message: 'Please upload a PDF file' });
-        }
+        const { studentId, marks, comments } = req.body;
 
-        const { studentId, fileUrl } = req.body;
+        // Validation
+        if (!marks || !comments) {
+            return res.status(400).json({ message: 'Marks and comments are required' });
+        }
+        if (marks.total > 60) {
+            return res.status(400).json({ message: 'Total marks cannot exceed 60' });
+        }
 
         const mentor = await AcademicMentor.findOne({ user: req.user._id });
         if (!mentor) {
             return res.status(404).json({ message: 'Mentor profile not found' });
         }
 
-        // Verify student is assigned to this mentor
-        const student = await Student.findOne({ _id: studentId, academic_mentor: mentor._id });
+        const student = await Student.findOne({ _id: studentId, academic_mentor: mentor._id }).populate('user');
         if (!student) {
             return res.status(403).json({ message: 'Student not assigned to you' });
         }
 
+        // Generate PDF
+        const uploadsDir = path.join(__dirname, '../uploads/marksheet');
+        if (!fs.existsSync(uploadsDir)) {
+            fs.mkdirSync(uploadsDir, { recursive: true });
+        }
+
+        const filename = `marksheet_${student.cb_number || student._id}_${Date.now()}.pdf`;
+        const filePath = path.join(uploadsDir, filename);
+
+        await generateMarksheetPDF(student, mentor, marks, comments, filePath);
+
+        const fileUrl = `/uploads/marksheet/${filename}`;
+
         const Marksheet = require('../models/Marksheet');
 
-        // Check if ACADEMIC marksheet already exists for this student, if so update it
-        // Important: checking for exists:true prevents overwriting the student/industry marksheet
         let marksheet = await Marksheet.findOne({
-            studentId: student.user,
+            studentId: student.user._id,
             mentorId: { $exists: true }
         });
 
         if (marksheet) {
             marksheet.fileUrl = fileUrl;
             marksheet.mentorId = mentor._id;
+            marksheet.marks = marks;
+            marksheet.comments = comments;
             marksheet.submittedDate = Date.now();
             await marksheet.save();
         } else {
             marksheet = await Marksheet.create({
-                studentId: student.user, // Marksheet links to User model, not Student model
+                studentId: student.user._id,
                 mentorId: mentor._id,
-                fileUrl
+                fileUrl,
+                marks,
+                comments
             });
         }
 
-        res.status(201).json(marksheet);
+        res.status(201).json({ message: 'Marksheet generated and submitted successfully', marksheet });
     } catch (error) {
+        console.error('Marksheet Submission Error:', error);
         res.status(500).json({ message: error.message });
     }
 };
@@ -181,6 +203,6 @@ const getAssignedStudentsWithMarksheet = async (req, res) => {
 module.exports = {
     getAssignedStudents,
     getStudentProfile,
-    uploadMarksheet,
+    submitMarksheet,
     getAssignedStudentsWithMarksheet,
 };
