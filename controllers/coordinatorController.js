@@ -456,8 +456,51 @@ const assignMentor = async (req, res) => {
             student.academic_mentor = null;
         }
 
+        // Validate status if assigning a mentor
+        if (mentorId && student.status !== 'Completed') {
+            return res.status(400).json({ message: 'Academic mentors can only be assigned to students who have completed their internship.' });
+        }
+
         await student.save();
         res.json({ message: 'Mentor assigned successfully', student });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+// @desc    Bulk Assign Mentor to Students
+// @route   POST /api/coordinator/students/bulk-assign-mentor
+// @access  Private (Coordinator/Admin)
+const bulkAssignMentor = async (req, res) => {
+    try {
+        const { studentIds, mentorId } = req.body;
+
+        if (!studentIds || !Array.isArray(studentIds) || studentIds.length === 0) {
+            return res.status(400).json({ message: 'No students selected' });
+        }
+
+        if (!mentorId) {
+            return res.status(400).json({ message: 'Mentor ID is required' });
+        }
+
+        const mentor = await AcademicMentor.findById(mentorId);
+        if (!mentor) {
+            return res.status(404).json({ message: 'Mentor not found' });
+        }
+
+        // Only assign to students with 'Completed' status
+        const result = await Student.updateMany(
+            {
+                _id: { $in: studentIds },
+                status: 'Completed'
+            },
+            { $set: { academic_mentor: mentorId } }
+        );
+
+        res.json({
+            message: `Mentor assigned to ${result.modifiedCount} students successfully`,
+            modifiedCount: result.modifiedCount
+        });
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
@@ -475,4 +518,5 @@ module.exports = {
     updateMentor,
     deleteMentor,
     assignMentor,
+    bulkAssignMentor,
 };

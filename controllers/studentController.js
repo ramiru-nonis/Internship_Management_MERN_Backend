@@ -7,7 +7,9 @@ const { createNotification } = require('./notificationController');
 // @access  Private (Student)
 const getProfile = async (req, res) => {
     try {
-        const student = await Student.findOne({ user: req.user._id }).populate('user', 'email role');
+        const student = await Student.findOne({ user: req.user._id })
+            .populate('user', 'email role')
+            .populate('academic_mentor', 'first_name last_name email contact_number');
 
         if (!student) {
             return res.status(404).json({ message: 'Student profile not found' });

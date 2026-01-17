@@ -12,6 +12,7 @@ const {
     updateMentor,
     deleteMentor,
     assignMentor,
+    bulkAssignMentor,
 } = require('../controllers/coordinatorController');
 const { downloadCVs } = require('../controllers/studentController');
 const { protect, coordinator } = require('../middleware/authMiddleware');
@@ -34,5 +35,6 @@ router.get('/mentors', protect, coordinator, getAllMentors);
 router.put('/mentors/:id', protect, coordinator, updateMentor);
 router.delete('/mentors/:id', protect, coordinator, deleteMentor);
 router.put('/students/:id/assign-mentor', assignMentor);
+router.post('/students/bulk-assign-mentor', bulkAssignMentor);
 
 module.exports = router;
