@@ -558,14 +558,19 @@ const bulkAssignMentor = async (req, res) => {
 // @access  Private (Coordinator)
 const getCompletedStudents = async (req, res) => {
     try {
+        console.log('Fetching completed students...');
         const students = await Student.find({ status: 'Completed' })
             .populate('user', 'email')
             .sort({ createdAt: -1 });
+
+        console.log(`Found ${students.length} students with status 'Completed'`);
 
         const Marksheet = require('../models/Marksheet');
 
         const studentUserIds = students.map(s => s.user._id);
         const marksheets = await Marksheet.find({ studentId: { $in: studentUserIds } });
+
+        console.log(`Found ${marksheets.length} marksheets for these students`);
 
         const studentsWithStatus = students.map(s => {
             const marksheet = marksheets.find(m => m.studentId.toString() === s.user._id.toString());
@@ -576,8 +581,10 @@ const getCompletedStudents = async (req, res) => {
             };
         });
 
+        console.log('Returning students with status:', studentsWithStatus.length);
         res.json(studentsWithStatus);
     } catch (error) {
+        console.error('Error in getCompletedStudents:', error);
         res.status(500).json({ message: error.message });
     }
 };
