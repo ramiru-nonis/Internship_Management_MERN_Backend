@@ -5,7 +5,6 @@ const {
     getStudentProfile,
     submitMarksheet,
     getAssignedStudentsWithMarksheet,
-    getFinalMarks,
 } = require('../controllers/mentorController');
 const { protect, academicMentor } = require('../middleware/authMiddleware');
 
@@ -18,6 +17,5 @@ router.get('/students', getAssignedStudents);
 router.get('/students-marks', getAssignedStudentsWithMarksheet);
 router.post('/marksheet', submitMarksheet);
 router.get('/students/:id', getStudentProfile);
-router.get('/final-marks/:studentId', getFinalMarks);
 
 module.exports = router;

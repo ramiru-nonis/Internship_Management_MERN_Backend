@@ -554,105 +554,110 @@ const bulkAssignMentor = async (req, res) => {
 };
 
 // @desc    Get completed students for final marks assignment
-// @route   GET /api/coordinator/final-marks/students
-// @access  Private (Coordinator)
-const getCompletedStudents = async (req, res) => {
+// @route   GET /api/coordinator/final-marks
+// @access  Private (Coordinator/Admin)
+const getCompletedStudentsForMarks = async (req, res) => {
     try {
-        const students = await Student.find({ status: 'Completed' })
+        const { search } = req.query;
+
+        let query = {
+            status: 'Completed'
+        };
+
+        // Search by name or CB number
+        if (search) {
+            query.$or = [
+                { first_name: { $regex: search, $options: 'i' } },
+                { last_name: { $regex: search, $options: 'i' } },
+                { cb_number: { $regex: search, $options: 'i' } },
+            ];
+        }
+
+        // Fetch completed students
+        const students = await Student.find(query)
             .populate('user', 'email')
-            .sort({ createdAt: -1 });
+            .populate('academic_mentor', 'first_name last_name')
+            .sort({ createdAt: -1 })
+            .lean();
 
-        res.json(students);
-    } catch (error) {
-        res.status(500).json({ message: error.message });
-    }
-};
+        // Fetch marksheets for these students
+        const studentIds = students.map(s => s.user?._id);
+        const marksheets = await Marksheet.find({
+            studentId: { $in: studentIds }
+        }).lean();
 
-// @desc    Get student marks for final submission
-// @route   GET /api/coordinator/final-marks/student/:studentId
-// @access  Private (Coordinator)
-const getStudentMarksForFinalSubmission = async (req, res) => {
-    try {
-        const marksheet = await Marksheet.findOne({ studentId: req.params.studentId });
-
-        if (!marksheet) {
-            return res.status(404).json({ message: 'Marksheet not found' });
-        }
-
-        // Get student info
-        const user = await User.findById(req.params.studentId);
-        const student = await Student.findOne({ user: req.params.studentId }).populate('academic_mentor', 'first_name last_name email');
-
-        res.json({
-            _id: marksheet._id,
-            studentId: req.params.studentId,
-            studentName: student ? `${student.first_name} ${student.last_name}` : 'Unknown',
-            academicMentorName: student?.academic_mentor ? `${student.academic_mentor.first_name} ${student.academic_mentor.last_name}` : 'Not Assigned',
-            academicMentorMarks: marksheet.marks?.total || 0,
-            academicMentorBreakdown: {
-                technical: marksheet.marks?.technical || 0,
-                softSkills: marksheet.marks?.softSkills || 0,
-                presentation: marksheet.marks?.presentation || 0
-            },
-            academicMentorComments: marksheet.comments || {},
-            marksheetDetails: {
-                fileUrl: marksheet.fileUrl,
-                submittedDate: marksheet.submittedDate,
-                mentorId: marksheet.mentorId
-            },
-            industryMentorMarks: marksheet.industryMentorMarks,
-            industryMentorComments: marksheet.industryMentorComments,
-            finalMarks: marksheet.finalMarks,
-            finalMarkStatus: marksheet.finalMarkStatus,
-            finalMarksSubmittedDate: marksheet.finalMarksSubmittedDate
+        const marksheetMap = {};
+        marksheets.forEach(m => {
+            marksheetMap[m.studentId.toString()] = m;
         });
+
+        // Attach marksheet information to students
+        const finalResults = students.map(student => ({
+            ...student,
+            marksheet: marksheetMap[student.user?._id?.toString()] || null
+        }));
+
+        res.json(finalResults);
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
 };
 
-// @desc    Submit final marks
-// @route   POST /api/coordinator/final-marks/submit/:studentId
-// @access  Private (Coordinator)
-const submitFinalMarks = async (req, res) => {
+// @desc    Save or update final marks for a student
+// @route   POST /api/coordinator/final-marks/:studentId
+// @access  Private (Coordinator/Admin)
+const saveFinalMarks = async (req, res) => {
     try {
-        const { industryMentorMarks, industryMentorComments } = req.body;
+        const { studentId } = req.params;
+        const { technical, softSkills, presentation, comments } = req.body;
 
-        if (industryMentorMarks === null || industryMentorMarks === undefined) {
-            return res.status(400).json({ message: 'Industry mentor marks are required' });
+        // Find student
+        const student = await Student.findById(studentId);
+        if (!student) {
+            return res.status(404).json({ message: 'Student not found' });
         }
 
-        if (industryMentorMarks < 0 || industryMentorMarks > 40) {
-            return res.status(400).json({ message: 'Industry marks must be between 0 and 40' });
+        // Validate that student has 'Completed' status
+        if (student.status !== 'Completed') {
+            return res.status(400).json({ message: 'Only completed students can receive final marks' });
         }
 
-        const marksheet = await Marksheet.findOne({ studentId: req.params.studentId });
+        const userId = student.user;
+
+        // Find or create marksheet
+        let marksheet = await Marksheet.findOne({ studentId: userId });
 
         if (!marksheet) {
-            return res.status(404).json({ message: 'Marksheet not found' });
+            marksheet = new Marksheet({
+                studentId: userId,
+                fileUrl: '', // Placeholder, can be updated later
+                marks: {
+                    technical: technical || 0,
+                    softSkills: softSkills || 0,
+                    presentation: presentation || 0,
+                    total: (technical || 0) + (softSkills || 0) + (presentation || 0)
+                },
+                comments: comments || {}
+            });
+        } else {
+            // Update existing marksheet
+            marksheet.marks = {
+                technical: technical || marksheet.marks?.technical || 0,
+                softSkills: softSkills || marksheet.marks?.softSkills || 0,
+                presentation: presentation || marksheet.marks?.presentation || 0,
+                total: (technical || marksheet.marks?.technical || 0) + (softSkills || marksheet.marks?.softSkills || 0) + (presentation || marksheet.marks?.presentation || 0)
+            };
+            if (comments) {
+                marksheet.comments = comments;
+            }
         }
-
-        const academicMarks = marksheet.marks?.total || 0;
-        const finalMarks = academicMarks + industryMentorMarks;
-
-        marksheet.industryMentorMarks = industryMentorMarks;
-        marksheet.industryMentorComments = industryMentorComments || '';
-        marksheet.finalMarks = finalMarks;
-        marksheet.finalMarkStatus = 'submitted';
-        marksheet.finalMarksSubmittedDate = new Date();
 
         await marksheet.save();
 
-        res.json({
-            message: 'Final marks submitted successfully',
-            marksheet: {
-                academicMentorMarks: marksheet.marks?.total || 0,
-                industryMentorMarks: marksheet.industryMentorMarks,
-                finalMarks: marksheet.finalMarks,
-                finalMarkStatus: marksheet.finalMarkStatus,
-                finalMarksSubmittedDate: marksheet.finalMarksSubmittedDate
-            }
-        });
+        // Populate and return the updated marksheet
+        await marksheet.populate('studentId', 'email');
+
+        res.json({ message: 'Final marks saved successfully', marksheet });
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
@@ -671,7 +676,6 @@ module.exports = {
     deleteMentor,
     assignMentor,
     bulkAssignMentor,
-    getCompletedStudents,
-    getStudentMarksForFinalSubmission,
-    submitFinalMarks,
+    getCompletedStudentsForMarks,
+    saveFinalMarks,
 };
