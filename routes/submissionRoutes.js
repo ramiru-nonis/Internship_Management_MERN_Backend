@@ -41,7 +41,6 @@ const upload = multer({ storage: storage });
 
 router.post('/marksheet', upload.single('marksheet'), submissionController.uploadMarksheet);
 router.post('/presentation', upload.single('presentation'), submissionController.uploadPresentation);
-router.get('/final-submissions', submissionController.getFinalSubmissionStudents);
 router.get('/', submissionController.getAllSubmissions);
 router.post('/notify', submissionController.notifySubmission);
 router.put('/presentation/:id/schedule', submissionController.schedulePresentation);
