@@ -186,13 +186,22 @@ const getAssignedStudentsWithMarksheet = async (req, res) => {
 
         const marksheetMap = {};
         marksheets.forEach(m => {
-            marksheetMap[m.studentId.toString()] = true;
+            marksheetMap[m.studentId.toString()] = {
+                has: true,
+                finalTotal: m.finalTotal,
+                finalGradingStatus: m.finalGradingStatus
+            };
         });
 
-        const studentsWithStatus = students.map(s => ({
-            ...s.toObject(),
-            hasMarksheet: !!marksheetMap[s.user?._id?.toString()]
-        }));
+        const studentsWithStatus = students.map(s => {
+            const msData = marksheetMap[s.user?._id?.toString()];
+            return {
+                ...s.toObject(),
+                hasMarksheet: !!msData,
+                finalTotal: msData?.finalTotal,
+                finalGradingStatus: msData?.finalGradingStatus
+            };
+        });
 
         res.json(studentsWithStatus);
     } catch (error) {
