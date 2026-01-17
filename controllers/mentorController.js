@@ -43,11 +43,6 @@ const getStudentProfile = async (req, res) => {
             return res.status(404).json({ message: 'Student not found or not assigned to you' });
         }
 
-        // Fetch Applications
-        const applications = await Application.find({ student: student._id })
-            .populate('internship', 'title company_name category')
-            .sort({ createdAt: -1 });
-
         // Fetch Placement Form
         const placement = await PlacementForm.findOne({ student: student._id });
 
@@ -59,17 +54,21 @@ const getStudentProfile = async (req, res) => {
         const marksheet = await Marksheet.findOne({ studentId: student.user._id }).sort({ createdAt: -1 });
         const presentation = await Presentation.findOne({ studentId: student.user._id }).sort({ createdAt: -1 });
         const logbooks = await Logbook.find({ studentId: student.user._id });
+        const latestLogbook = await Logbook.findOne({
+            studentId: student.user._id
+        }).sort({ year: -1, month: -1 });
 
         res.json({
             student,
-            applications,
+            applications: [], // Mentors do not see applied jobs
             placement,
             submissions: {
                 marksheet,
                 presentation,
                 logbooks: {
                     total: logbooks.length,
-                    approved: logbooks.filter(lb => lb.status === 'Approved').length
+                    approved: logbooks.filter(lb => lb.status === 'Approved').length,
+                    currentLogbookId: latestLogbook ? latestLogbook._id : null
                 }
             }
         });
