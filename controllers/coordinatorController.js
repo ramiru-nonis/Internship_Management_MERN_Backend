@@ -46,8 +46,25 @@ const createAcademicMentor = async (req, res) => {
 // @access  Private (Coordinator/Admin)
 const getAllMentors = async (req, res) => {
     try {
-        const mentors = await AcademicMentor.find().populate('user', 'email');
-        res.json(mentors);
+        const mentors = await AcademicMentor.find().populate('user', 'email').lean();
+
+        // Get student counts for each mentor
+        const counts = await Student.aggregate([
+            { $match: { academic_mentor: { $ne: null } } },
+            { $group: { _id: "$academic_mentor", count: { $sum: 1 } } }
+        ]);
+
+        const countMap = {};
+        counts.forEach(c => {
+            if (c._id) countMap[c._id.toString()] = c.count;
+        });
+
+        const mentorsWithCount = mentors.map(m => ({
+            ...m,
+            assignedStudentsCount: countMap[m._id.toString()] || 0
+        }));
+
+        res.json(mentorsWithCount);
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
