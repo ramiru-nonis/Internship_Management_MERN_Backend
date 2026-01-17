@@ -153,16 +153,11 @@ const getDashboardStats = async (req, res) => {
 // @access  Private (Coordinator/Admin)
 const getAllStudents = async (req, res) => {
     try {
-        const { status, search, batch, mentor } = req.query;
+        const { status, search, batch } = req.query;
         const Presentation = require('../models/Presentation'); // Lazy load
         const User = require('../models/User'); // Lazy load User model
 
         let query = {};
-
-        // Filter by mentor
-        if (mentor) {
-            query.academic_mentor = mentor;
-        }
 
         // Filter by status
         if (status && status !== 'all') {
