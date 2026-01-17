@@ -29,12 +29,7 @@ const marksheetSchema = new mongoose.Schema({
         technical: String,
         softSkills: String,
         presentation: String
-    },
-    // Coordinator Final Marks
-    industryMarks: { type: Number, min: 0, max: 40 },
-    industryComments: String,
-    finalMarks: { type: Number, max: 100 },
-    isPublished: { type: Boolean, default: false }
+    }
 }, { timestamps: true });
 
 module.exports = mongoose.model('Marksheet', marksheetSchema);
