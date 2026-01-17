@@ -8,8 +8,7 @@ const marksheetSchema = new mongoose.Schema({
     },
     mentorId: {
         type: mongoose.Schema.Types.ObjectId,
-        ref: 'AcademicMentor',
-        required: true
+        ref: 'AcademicMentor'
     },
     fileUrl: {
         type: String, // Relative path or URL

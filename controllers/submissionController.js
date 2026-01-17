@@ -312,8 +312,11 @@ exports.getStudentSubmissions = async (req, res) => {
         const PlacementForm = require('../models/PlacementForm');
         const Student = require('../models/Student');
 
-        // Fetch LATEST Marksheet
-        const marksheet = await Marksheet.findOne({ studentId }).sort({ createdAt: -1 });
+        // Fetch LATEST Marksheet (Student/Industry only)
+        const marksheet = await Marksheet.findOne({
+            studentId,
+            mentorId: { $exists: false }
+        }).sort({ createdAt: -1 });
         const marksheetCount = await Marksheet.countDocuments({ studentId });
 
         // Fetch LATEST Presentation

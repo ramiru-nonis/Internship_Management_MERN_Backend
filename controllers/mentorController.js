@@ -51,7 +51,18 @@ const getStudentProfile = async (req, res) => {
         const Presentation = require('../models/Presentation');
         const Logbook = require('../models/Logbook');
 
-        const marksheet = await Marksheet.findOne({ studentId: student.user._id }).sort({ createdAt: -1 });
+        // Industry Marksheet: Uploaded by student (no mentorId)
+        const industryMarksheet = await Marksheet.findOne({
+            studentId: student.user._id,
+            mentorId: { $exists: false }
+        }).sort({ createdAt: -1 });
+
+        // Academic Mentor Marksheet: Uploaded by mentor (has mentorId)
+        const academicMarksheet = await Marksheet.findOne({
+            studentId: student.user._id,
+            mentorId: { $exists: true }
+        }).sort({ createdAt: -1 });
+
         const presentation = await Presentation.findOne({ studentId: student.user._id }).sort({ createdAt: -1 });
         const logbooks = await Logbook.find({ studentId: student.user._id });
         const latestLogbook = await Logbook.findOne({
@@ -63,7 +74,8 @@ const getStudentProfile = async (req, res) => {
             applications: [], // Mentors do not see applied jobs
             placement,
             submissions: {
-                marksheet,
+                marksheet: industryMarksheet, // Standard/Student marksheet (Industry)
+                academicMarksheet: academicMarksheet, // New Academic Mentor marksheet
                 presentation,
                 logbooks: {
                     total: logbooks.length,
@@ -101,8 +113,12 @@ const uploadMarksheet = async (req, res) => {
 
         const Marksheet = require('../models/Marksheet');
 
-        // Check if marksheet already exists, if so update it
-        let marksheet = await Marksheet.findOne({ studentId: student.user });
+        // Check if ACADEMIC marksheet already exists for this student, if so update it
+        // Important: checking for exists:true prevents overwriting the student/industry marksheet
+        let marksheet = await Marksheet.findOne({
+            studentId: student.user,
+            mentorId: { $exists: true }
+        });
 
         if (marksheet) {
             marksheet.fileUrl = fileUrl;
@@ -139,9 +155,12 @@ const getAssignedStudentsWithMarksheet = async (req, res) => {
 
         const Marksheet = require('../models/Marksheet');
 
-        // Get all marksheets for these students
+        // Get all ACADEMIC marksheets for these students
         const studentUserIds = students.map(s => s.user?._id);
-        const marksheets = await Marksheet.find({ studentId: { $in: studentUserIds } });
+        const marksheets = await Marksheet.find({
+            studentId: { $in: studentUserIds },
+            mentorId: { $exists: true }
+        });
 
         const marksheetMap = {};
         marksheets.forEach(m => {

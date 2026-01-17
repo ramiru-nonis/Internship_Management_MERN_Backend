@@ -255,7 +255,10 @@ const getAllStudents = async (req, res) => {
         const studentIds = students.map(s => s.user?._id);
 
         const presentations = await Presentation.find({ studentId: { $in: studentIds } });
-        const marksheets = await Marksheet.find({ studentId: { $in: studentIds } }); // Fetch marksheets
+        const marksheets = await Marksheet.find({
+            studentId: { $in: studentIds },
+            mentorId: { $exists: true } // Only verify Academic Mentor marksheets for this view
+        });
 
         const presentationMap = {};
         presentations.forEach(p => {
@@ -410,7 +413,19 @@ const getStudentProfile = async (req, res) => {
         const Presentation = require('../models/Presentation');
         const Logbook = require('../models/Logbook');
 
-        const marksheet = await Marksheet.findOne({ studentId: student.user._id }).sort({ createdAt: -1 });
+        // Fetch Marksheets (Industry/Student vs Academic Mentor)
+        // Industry Marksheet: Uploaded by student (no mentorId)
+        const industryMarksheet = await Marksheet.findOne({
+            studentId: student.user._id,
+            mentorId: { $exists: false }
+        }).sort({ createdAt: -1 });
+
+        // Academic Mentor Marksheet: Uploaded by mentor (has mentorId)
+        const academicMarksheet = await Marksheet.findOne({
+            studentId: student.user._id,
+            mentorId: { $exists: true }
+        }).sort({ createdAt: -1 });
+
         const presentation = await Presentation.findOne({ studentId: student.user._id }).sort({ createdAt: -1 });
         const logbooks = await Logbook.find({ studentId: student.user._id });
         const latestLogbook = await Logbook.findOne({
@@ -422,7 +437,8 @@ const getStudentProfile = async (req, res) => {
             applications,
             placement,
             submissions: {
-                marksheet,
+                marksheet: industryMarksheet, // Standard/Student marksheet (Industry)
+                academicMarksheet: academicMarksheet, // New Academic Mentor marksheet
                 presentation,
                 logbooks: {
                     total: logbooks.length,
