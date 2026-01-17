@@ -29,6 +29,23 @@ const marksheetSchema = new mongoose.Schema({
         technical: String,
         softSkills: String,
         presentation: String
+    },
+    // Coordinator/Final Grading Fields
+    industryMarks: {
+        type: Number,
+        min: 0,
+        max: 40,
+        default: 0
+    },
+    finalTotal: {
+        type: Number,
+        min: 0,
+        max: 100
+    },
+    finalGradingStatus: {
+        type: String,
+        enum: ['Pending', 'Completed'],
+        default: 'Pending'
     }
 }, { timestamps: true });
 
