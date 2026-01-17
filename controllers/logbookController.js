@@ -7,6 +7,7 @@ const PlacementForm = require('../models/PlacementForm');
 const { mergePDFs } = require('../utils/pdfUtils');
 const path = require('path');
 const fs = require('fs');
+const axios = require('axios'); // Required for Cloudinary proxy
 
 // Get Logbook for a specific month
 exports.getLogbook = async (req, res) => {
@@ -450,13 +451,136 @@ exports.downloadLogbookPDF = async (req, res) => {
         const studentData = await Student.findOne({ user: logbook.studentId });
         if (!studentData) return res.status(404).json({ message: 'Student profile not found' });
 
+        // If a signed PDF exists, serve it
+        if (logbook.signedPDFPath) {
+            // Check if it's a URL (Cloudinary)
+            if (logbook.signedPDFPath.startsWith('http')) {
+                console.log("[DEBUG] Proxying Cloudinary PDF:", logbook.signedPDFPath);
+
+                let downloadUrl = logbook.signedPDFPath;
+
+                // Try to generate a signed URL if we can extract public_id
+                try {
+                    const parts = logbook.signedPDFPath.split('/upload/');
+                    if (parts.length === 2) {
+                        const versionAndId = parts[1]; // v12356/folder/id.pdf
+                        const pathParts = versionAndId.split('/');
+                        if (pathParts[0].startsWith('v')) {
+                            pathParts.shift(); // remove version
+                        }
+                        const publicIdWithExt = pathParts.join('/');
+                        const cloudinary = require('../config/cloudinary').cloudinary;
+
+                        downloadUrl = cloudinary.url(publicIdWithExt, {
+                            resource_type: 'raw',
+                            sign_url: true,
+                            type: 'authenticated',
+                        });
+
+                        downloadUrl = logbook.signedPDFPath; // Revert to stored for now, rely on headers.
+                    }
+                } catch (e) {
+                    console.warn("Error parsing Cloudinary URL:", e);
+                }
+
+                // Proxy the file from Cloudinary 
+                try {
+                    const response = await axios({
+                        method: 'get',
+                        url: downloadUrl,
+                        responseType: 'stream',
+                        timeout: 15000,
+                        headers: {
+                            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+                        }
+                    });
+
+                    // Set headers
+                    res.setHeader('Content-Type', 'application/pdf');
+                    res.setHeader('Content-Disposition', `inline; filename="Signed_Logbook_${studentData.cb_number}_Month_${logbook.month}.pdf"`);
+
+                    response.data.pipe(res);
+                    return;
+                } catch (proxyError) {
+                    console.error("Error proxying PDF from Cloudinary:", proxyError.message);
+
+                    // Fallback: Redirect to client-side
+                    try {
+                        const cloudinary = require('../config/cloudinary').cloudinary;
+                        const urlObj = new URL(logbook.signedPDFPath);
+                        const pathSegments = urlObj.pathname.split('/');
+
+                        let resourceType = 'auto';
+                        let deliveryType = 'upload';
+                        let publicId = '';
+                        let versionIndex = -1;
+
+                        for (let i = 0; i < pathSegments.length; i++) {
+                            if (pathSegments[i].match(/^v\d+$/)) {
+                                versionIndex = i;
+                                break;
+                            }
+                        }
+
+                        if (versionIndex !== -1) {
+                            if (versionIndex >= 3) {
+                                resourceType = pathSegments[versionIndex - 2];
+                                deliveryType = pathSegments[versionIndex - 1];
+                            }
+                            publicId = pathSegments.slice(versionIndex + 1).join('/');
+                        } else {
+                            const typeIndex = pathSegments.findIndex(s => s === 'upload' || s === 'authenticated' || s === 'private');
+                            if (typeIndex !== -1) {
+                                deliveryType = pathSegments[typeIndex];
+                                resourceType = pathSegments[typeIndex - 1];
+                                publicId = pathSegments.slice(typeIndex + 1).join('/');
+                            }
+                        }
+
+                        if (publicId) {
+                            if (resourceType === 'image' && publicId.toLowerCase().endsWith('.pdf')) {
+                                publicId = publicId.replace(/\.pdf$/i, '');
+                            }
+
+                            const signedUrl = cloudinary.url(publicId, {
+                                resource_type: resourceType,
+                                type: deliveryType,
+                                sign_url: true,
+                                secure: true,
+                                format: (resourceType === 'image') ? 'pdf' : undefined
+                            });
+
+                            return res.redirect(signedUrl);
+                        } else {
+                            return res.redirect(logbook.signedPDFPath);
+                        }
+                    } catch (e) {
+                        return res.redirect(logbook.signedPDFPath);
+                    }
+                }
+            } else {
+                const fullPath = path.isAbsolute(logbook.signedPDFPath)
+                    ? logbook.signedPDFPath
+                    : path.join(__dirname, '..', logbook.signedPDFPath);
+
+                if (fs.existsSync(fullPath)) {
+                    res.setHeader('Content-Type', 'application/pdf');
+                    res.setHeader('Content-Disposition', `inline; filename="Signed_Logbook_${studentData.cb_number}_Month_${logbook.month}.pdf"`);
+                    return res.sendFile(fullPath);
+                } else {
+                    return res.status(404).json({ message: "Signed logbook file not found on server." });
+                }
+            }
+        }
+
+        // Fallback: Generate PDF from data if no signed PDF
         res.setHeader('Content-Type', 'application/pdf');
         res.setHeader('Content-Disposition', `attachment; filename=Logbook_${studentData.cb_number}_Month_${logbook.month}.pdf`);
 
         generateLogbookPDF(logbook, studentData, res);
     } catch (error) {
-        console.error("Error generating PDF:", error);
-        res.status(500).json({ message: 'Error generating PDF', error: error.message });
+        console.error("Error generating/fetching PDF:", error);
+        res.status(500).json({ message: 'Error processing PDF request', error: error.message });
     }
 };
 
