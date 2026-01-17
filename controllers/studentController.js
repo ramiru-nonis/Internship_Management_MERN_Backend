@@ -1,6 +1,5 @@
 const Student = require('../models/Student');
 const User = require('../models/User');
-const Marksheet = require('../models/Marksheet');
 const { createNotification } = require('./notificationController');
 
 // @desc    Get student profile
@@ -322,50 +321,39 @@ const deleteAccount = async (req, res) => {
 };
 
 // @desc    Get final marks for student
-// @route   GET /api/student/:studentId/final-marks
-// @access  Private (Student can only access their own marks)
+// @route   GET /api/students/final-marks
+// @access  Private (Student)
 const getFinalMarks = async (req, res) => {
     try {
-        const { studentId } = req.params;
+        const Marksheet = require('../models/Marksheet');
+        const student = await Student.findOne({ user: req.user._id });
 
-        // Ensure student can only access their own marks
-        const student = await Student.findById(studentId).populate('user');
         if (!student) {
-            return res.status(404).json({ message: 'Student not found' });
+            return res.status(404).json({ message: 'Student profile not found' });
         }
 
-        if (req.user._id.toString() !== student.user._id.toString()) {
-            return res.status(403).json({ message: 'Unauthorized' });
+        // Get marksheet with final marks
+        const marksheet = await Marksheet.findOne({ studentId: req.user._id })
+            .populate('academicMentorId', 'first_name last_name email');
+
+        if (!marksheet) {
+            return res.status(404).json({ message: 'Marksheet not found' });
         }
 
-        const marksheet = await Marksheet.findOne({ studentId: student.user._id })
-            .populate('mentorId', 'first_name last_name');
-
-        if (!marksheet || marksheet.finalMarkStatus !== 'submitted') {
-            return res.status(404).json({ message: 'Final marks not available yet' });
+        // Only return if final marks have been submitted
+        if (marksheet.finalMarkStatus !== 'submitted') {
+            return res.status(400).json({ message: 'Final marks have not been submitted yet' });
         }
 
         res.json({
-            marksheet: {
-                _id: marksheet._id,
-                academicMentorMarks: {
-                    technical: marksheet.marks.technical,
-                    softSkills: marksheet.marks.softSkills,
-                    presentation: marksheet.marks.presentation,
-                    total: marksheet.marks.total
-                },
-                academicMentorComments: {
-                    technical: marksheet.comments.technical,
-                    softSkills: marksheet.comments.softSkills,
-                    presentation: marksheet.comments.presentation
-                },
-                industryMentorMarks: marksheet.industryMentorMarks,
-                industryMentorComments: marksheet.industryMentorComments,
-                finalMarks: marksheet.finalMarks,
-                finalMarkStatus: marksheet.finalMarkStatus,
-                finalMarksSubmittedDate: marksheet.finalMarksSubmittedDate,
-                mentorInfo: marksheet.mentorId
-            }
+            academicMentorMarks: marksheet.academicMentorMarks,
+            academicMentorComments: marksheet.academicMentorComments,
+            industryMentorMarks: marksheet.industryMentorMarks,
+            industryMentorComments: marksheet.industryMentorComments,
+            finalMarks: marksheet.finalMarks,
+            finalMarkStatus: marksheet.finalMarkStatus,
+            finalMarksSubmittedDate: marksheet.finalMarksSubmittedDate,
+            academicMentor: marksheet.academicMentorId
         });
     } catch (error) {
         res.status(500).json({ message: error.message });

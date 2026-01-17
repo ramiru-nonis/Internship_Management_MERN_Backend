@@ -46,6 +46,6 @@ router.post('/upload-picture', (req, res, next) => {
 
 router.get('/applications', getApplications);
 router.get('/status', getStatus);
-router.get('/:studentId/final-marks', getFinalMarks);
+router.get('/final-marks', getFinalMarks);
 
 module.exports = router;

@@ -564,12 +564,13 @@ const getCompletedStudents = async (req, res) => {
             .lean();
 
         // Get final marks status for each student
+        const Marksheet = require('../models/Marksheet');
         const studentsWithMarksStatus = await Promise.all(
             students.map(async (student) => {
                 const marksheet = await Marksheet.findOne({ studentId: student.user._id });
                 return {
                     ...student,
-                    hasFinalMarks: marksheet?.finalMarkStatus === 'submitted' || marksheet?.finalMarkStatus === 'finalized',
+                    hasFinalMarks: marksheet?.finalMarkStatus === 'submitted' || false,
                     marksStatus: marksheet?.finalMarkStatus || 'pending'
                 };
             })
@@ -587,6 +588,7 @@ const getCompletedStudents = async (req, res) => {
 const getStudentMarksForFinalSubmission = async (req, res) => {
     try {
         const { studentId } = req.params;
+        const Marksheet = require('../models/Marksheet');
 
         const student = await Student.findById(studentId)
             .populate('user', 'email first_name last_name')
@@ -649,6 +651,7 @@ const submitFinalMarks = async (req, res) => {
     try {
         const { studentId } = req.params;
         const { industryMentorMarks, industryMentorComments } = req.body;
+        const Marksheet = require('../models/Marksheet');
 
         // Validation
         if (industryMentorMarks === undefined || industryMentorMarks === null) {
@@ -688,41 +691,6 @@ const submitFinalMarks = async (req, res) => {
         marksheet.finalMarksSubmittedDate = new Date();
 
         await marksheet.save();
-
-        // Create notification for student and academic mentor
-        const Notification = require('../models/Notification');
-        const academicMentorMarksheet = await Marksheet.findOne({ studentId: student.user._id }).populate('mentorId');
-
-        // Notify student
-        if (student.user) {
-            await Notification.create({
-                userId: student.user._id,
-                type: 'marksheet',
-                title: 'Final Marks Submitted',
-                message: `Your final internship marks (${finalMarks}/100) have been submitted by the coordinator.`,
-                relatedData: {
-                    studentId: student._id,
-                    marksId: marksheet._id
-                }
-            });
-        }
-
-        // Notify academic mentor
-        if (academicMentorMarksheet && academicMentorMarksheet.mentorId) {
-            const mentorUser = await User.findOne({ 'AcademicMentor._id': academicMentorMarksheet.mentorId });
-            if (mentorUser) {
-                await Notification.create({
-                    userId: mentorUser._id,
-                    type: 'marksheet',
-                    title: 'Final Marks Finalized',
-                    message: `Final marks for student ${student.first_name} ${student.last_name} have been finalized (${finalMarks}/100).`,
-                    relatedData: {
-                        studentId: student._id,
-                        marksId: marksheet._id
-                    }
-                });
-            }
-        }
 
         res.json({
             message: 'Final marks submitted successfully',

@@ -47,10 +47,9 @@ const marksheetSchema = new mongoose.Schema({
         max: 100,
         default: null
     },
-    // Status tracking
     finalMarkStatus: {
         type: String,
-        enum: ['pending', 'submitted', 'finalized'],
+        enum: ['pending', 'submitted'],
         default: 'pending'
     },
     finalMarksSubmittedDate: {
