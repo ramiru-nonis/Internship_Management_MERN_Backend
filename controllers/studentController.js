@@ -320,6 +320,42 @@ const deleteAccount = async (req, res) => {
     }
 };
 
+// @desc    Get student's final marks
+// @route   GET /api/students/final-marks
+// @access  Private (Student)
+const getFinalMarks = async (req, res) => {
+    try {
+        const Marksheet = require('../models/Marksheet');
+        const marksheet = await Marksheet.findOne({ student: req.user._id });
+
+        if (!marksheet) {
+            return res.status(404).json({ message: 'No marksheet found' });
+        }
+
+        // Return final marks info
+        res.json({
+            academicMentorMarks: marksheet.marks.total,
+            academicMentorBreakdown: {
+                technical: marksheet.marks.technical,
+                softSkills: marksheet.marks.softSkills,
+                presentation: marksheet.marks.presentation
+            },
+            academicMentorComments: marksheet.comments,
+            marksheetDetails: {
+                fileUrl: marksheet.fileUrl,
+                submittedDate: marksheet.submittedDate
+            },
+            industryMentorMarks: marksheet.industryMentorMarks,
+            industryMentorComments: marksheet.industryMentorComments,
+            finalMarks: marksheet.finalMarks,
+            finalMarkStatus: marksheet.finalMarkStatus,
+            finalMarksSubmittedDate: marksheet.finalMarksSubmittedDate
+        });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
 module.exports = {
     getProfile,
     updateProfile,
@@ -329,4 +365,5 @@ module.exports = {
     getStatus,
     downloadCVs,
     deleteAccount,
+    getFinalMarks,
 };

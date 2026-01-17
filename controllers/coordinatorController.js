@@ -579,10 +579,27 @@ const getStudentMarksForFinalSubmission = async (req, res) => {
             return res.status(404).json({ message: 'Marksheet not found' });
         }
 
+        // Get student info
+        const user = await User.findById(req.params.studentId);
+        const student = await Student.findOne({ user: req.params.studentId }).populate('academic_mentor', 'first_name last_name email');
+
         res.json({
             _id: marksheet._id,
+            studentId: req.params.studentId,
+            studentName: student ? `${student.first_name} ${student.last_name}` : 'Unknown',
+            academicMentorName: student?.academic_mentor ? `${student.academic_mentor.first_name} ${student.academic_mentor.last_name}` : 'Not Assigned',
             academicMentorMarks: marksheet.marks?.total || 0,
-            academicMentorComments: marksheet.comments?.presentation || '',
+            academicMentorBreakdown: {
+                technical: marksheet.marks?.technical || 0,
+                softSkills: marksheet.marks?.softSkills || 0,
+                presentation: marksheet.marks?.presentation || 0
+            },
+            academicMentorComments: marksheet.comments || {},
+            marksheetDetails: {
+                fileUrl: marksheet.fileUrl,
+                submittedDate: marksheet.submittedDate,
+                mentorId: marksheet.mentorId
+            },
             industryMentorMarks: marksheet.industryMentorMarks,
             industryMentorComments: marksheet.industryMentorComments,
             finalMarks: marksheet.finalMarks,
@@ -628,7 +645,13 @@ const submitFinalMarks = async (req, res) => {
 
         res.json({
             message: 'Final marks submitted successfully',
-            marksheet
+            marksheet: {
+                academicMentorMarks: marksheet.marks?.total || 0,
+                industryMentorMarks: marksheet.industryMentorMarks,
+                finalMarks: marksheet.finalMarks,
+                finalMarkStatus: marksheet.finalMarkStatus,
+                finalMarksSubmittedDate: marksheet.finalMarksSubmittedDate
+            }
         });
     } catch (error) {
         res.status(500).json({ message: error.message });

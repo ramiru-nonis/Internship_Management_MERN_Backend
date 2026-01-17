@@ -200,9 +200,40 @@ const getAssignedStudentsWithMarksheet = async (req, res) => {
     }
 };
 
+// @desc    Get final marks for a specific student
+// @route   GET /api/mentors/final-marks/:studentId
+// @access  Private (Mentor)
+const getFinalMarks = async (req, res) => {
+    try {
+        const Marksheet = require('../models/Marksheet');
+        const marksheet = await Marksheet.findOne({ student: req.params.studentId });
+
+        if (!marksheet) {
+            return res.status(404).json({ message: 'No marksheet found' });
+        }
+
+        // Return final marks info
+        res.json({
+            academicMentorMarks: marksheet.marks.total,
+            academicMentorBreakdown: {
+                technical: marksheet.marks.technical,
+                softSkills: marksheet.marks.softSkills,
+                presentation: marksheet.marks.presentation
+            },
+            industryMentorMarks: marksheet.industryMentorMarks,
+            finalMarks: marksheet.finalMarks,
+            finalMarkStatus: marksheet.finalMarkStatus,
+            finalMarksSubmittedDate: marksheet.finalMarksSubmittedDate
+        });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
 module.exports = {
     getAssignedStudents,
     getStudentProfile,
     submitMarksheet,
     getAssignedStudentsWithMarksheet,
+    getFinalMarks,
 };
