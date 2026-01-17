@@ -18,9 +18,17 @@ const marksheetSchema = new mongoose.Schema({
         type: Date,
         default: Date.now
     },
-    submittedDate: {
-        type: Date,
-        default: Date.now
+    // Academic Mentor Specific Fields
+    marks: {
+        technical: { type: Number, min: 0, max: 20 },
+        softSkills: { type: Number, min: 0, max: 20 },
+        presentation: { type: Number, min: 0, max: 20 },
+        total: { type: Number, max: 60 }
+    },
+    comments: {
+        technical: String,
+        softSkills: String,
+        presentation: String
     }
 }, { timestamps: true });
 
