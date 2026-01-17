@@ -2,6 +2,7 @@ const Internship = require('../models/Internship');
 const PlacementForm = require('../models/PlacementForm');
 const User = require('../models/User');
 const AcademicMentor = require('../models/AcademicMentor');
+const Marksheet = require('../models/Marksheet');
 const Student = require('../models/Student');
 const Application = require('../models/Application');
 
@@ -153,11 +154,16 @@ const getDashboardStats = async (req, res) => {
 // @access  Private (Coordinator/Admin)
 const getAllStudents = async (req, res) => {
     try {
-        const { status, search, batch } = req.query;
+        const { status, search, batch, mentor } = req.query;
         const Presentation = require('../models/Presentation'); // Lazy load
         const User = require('../models/User'); // Lazy load User model
 
         let query = {};
+
+        // Filter by mentor
+        if (mentor) {
+            query.academic_mentor = mentor;
+        }
 
         // Filter by status
         if (status && status !== 'all') {
@@ -245,18 +251,26 @@ const getAllStudents = async (req, res) => {
         // 4. Merge
         const allRecords = [...students, ...formattedOrphans];
 
-        // Attach presentation status (only for real students, orphans have none)
+        // Attach presentation and marksheet status
         const studentIds = students.map(s => s.user?._id);
+
         const presentations = await Presentation.find({ studentId: { $in: studentIds } });
+        const marksheets = await Marksheet.find({ studentId: { $in: studentIds } }); // Fetch marksheets
 
         const presentationMap = {};
         presentations.forEach(p => {
             presentationMap[p.studentId.toString()] = true;
         });
 
+        const marksheetMap = {}; // Create map
+        marksheets.forEach(m => {
+            marksheetMap[m.studentId.toString()] = true;
+        });
+
         const finalResults = allRecords.map(record => ({
             ...record,
-            hasPresentation: record.isOrphan ? false : !!presentationMap[record.user?._id?.toString()]
+            hasPresentation: record.isOrphan ? false : !!presentationMap[record.user?._id?.toString()],
+            hasMarksheet: record.isOrphan ? false : !!marksheetMap[record.user?._id?.toString()] // Add hasMarksheet
         }));
 
         res.json(finalResults);

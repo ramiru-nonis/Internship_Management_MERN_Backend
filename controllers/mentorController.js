@@ -77,7 +77,91 @@ const getStudentProfile = async (req, res) => {
     }
 };
 
+// @desc    Upload Marksheet
+// @route   POST /api/mentor/marksheet
+// @access  Private (Academic Mentor)
+const uploadMarksheet = async (req, res) => {
+    try {
+        if (!req.file) {
+            return res.status(400).json({ message: 'Please upload a PDF file' });
+        }
+
+        const { studentId, fileUrl } = req.body;
+
+        const mentor = await AcademicMentor.findOne({ user: req.user._id });
+        if (!mentor) {
+            return res.status(404).json({ message: 'Mentor profile not found' });
+        }
+
+        // Verify student is assigned to this mentor
+        const student = await Student.findOne({ _id: studentId, academic_mentor: mentor._id });
+        if (!student) {
+            return res.status(403).json({ message: 'Student not assigned to you' });
+        }
+
+        const Marksheet = require('../models/Marksheet');
+
+        // Check if marksheet already exists, if so update it
+        let marksheet = await Marksheet.findOne({ studentId: student.user });
+
+        if (marksheet) {
+            marksheet.fileUrl = fileUrl;
+            marksheet.mentorId = mentor._id;
+            marksheet.submittedDate = Date.now();
+            await marksheet.save();
+        } else {
+            marksheet = await Marksheet.create({
+                studentId: student.user, // Marksheet links to User model, not Student model
+                mentorId: mentor._id,
+                fileUrl
+            });
+        }
+
+        res.status(201).json(marksheet);
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+// @desc    Get assigned students with marksheet status
+// @route   GET /api/mentor/students-marks
+// @access  Private (Academic Mentor)
+const getAssignedStudentsWithMarksheet = async (req, res) => {
+    try {
+        const mentor = await AcademicMentor.findOne({ user: req.user._id });
+        if (!mentor) {
+            return res.status(404).json({ message: 'Mentor profile not found' });
+        }
+
+        const students = await Student.find({ academic_mentor: mentor._id })
+            .populate('user', 'email')
+            .sort({ createdAt: -1 });
+
+        const Marksheet = require('../models/Marksheet');
+
+        // Get all marksheets for these students
+        const studentUserIds = students.map(s => s.user?._id);
+        const marksheets = await Marksheet.find({ studentId: { $in: studentUserIds } });
+
+        const marksheetMap = {};
+        marksheets.forEach(m => {
+            marksheetMap[m.studentId.toString()] = true;
+        });
+
+        const studentsWithStatus = students.map(s => ({
+            ...s.toObject(),
+            hasMarksheet: !!marksheetMap[s.user?._id?.toString()]
+        }));
+
+        res.json(studentsWithStatus);
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
 module.exports = {
     getAssignedStudents,
     getStudentProfile,
+    uploadMarksheet,
+    getAssignedStudentsWithMarksheet,
 };

@@ -6,6 +6,11 @@ const marksheetSchema = new mongoose.Schema({
         ref: 'User',
         required: true
     },
+    mentorId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'AcademicMentor',
+        required: true
+    },
     fileUrl: {
         type: String, // Relative path or URL
         required: true
