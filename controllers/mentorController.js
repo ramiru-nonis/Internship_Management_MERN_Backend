@@ -200,64 +200,9 @@ const getAssignedStudentsWithMarksheet = async (req, res) => {
     }
 };
 
-// @desc    Get students with final marks for assigned mentor
-// @route   GET /api/mentor/final-marks
-// @access  Private (Academic Mentor)
-const getMentorStudentsWithFinalMarks = async (req, res) => {
-    try {
-        const mentor = await AcademicMentor.findOne({ user: req.user._id });
-        if (!mentor) {
-            return res.status(404).json({ message: 'Mentor profile not found' });
-        }
-
-        const Marksheet = require('../models/Marksheet');
-        const students = await Student.find({ academic_mentor: mentor._id })
-            .populate('user', 'email')
-            .sort({ createdAt: -1 });
-
-        const studentUserIds = students.map(s => s.user?._id);
-
-        // Get marksheets with final marks that have been submitted
-        const marksheets = await Marksheet.find({
-            studentId: { $in: studentUserIds },
-            finalMarkStatus: 'submitted'
-        });
-
-        const marksheetMap = {};
-        marksheets.forEach(m => {
-            marksheetMap[m.studentId.toString()] = m;
-        });
-
-        // Return only students with submitted final marks
-        const studentsWithFinalMarks = students
-            .filter(s => !!marksheetMap[s.user?._id?.toString()])
-            .map(s => {
-                const marksheet = marksheetMap[s.user?._id?.toString()];
-                return {
-                    _id: s._id,
-                    first_name: s.first_name,
-                    last_name: s.last_name,
-                    email: s.user?.email,
-                    academicMentorMarks: marksheet.academicMentorMarks,
-                    academicMentorComments: marksheet.academicMentorComments,
-                    industryMentorMarks: marksheet.industryMentorMarks,
-                    industryMentorComments: marksheet.industryMentorComments,
-                    finalMarks: marksheet.finalMarks,
-                    finalMarkStatus: marksheet.finalMarkStatus,
-                    finalMarksSubmittedDate: marksheet.finalMarksSubmittedDate
-                };
-            });
-
-        res.json(studentsWithFinalMarks);
-    } catch (error) {
-        res.status(500).json({ message: error.message });
-    }
-};
-
 module.exports = {
     getAssignedStudents,
     getStudentProfile,
     submitMarksheet,
     getAssignedStudentsWithMarksheet,
-    getMentorStudentsWithFinalMarks,
 };

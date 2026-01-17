@@ -553,139 +553,73 @@ const bulkAssignMentor = async (req, res) => {
     }
 };
 
-// @desc    Get students with completed internship status for final marks assignment
+// @desc    Get completed students for final marks assignment
 // @route   GET /api/coordinator/final-marks/students
-// @access  Private (Coordinator/Admin)
+// @access  Private (Coordinator)
 const getCompletedStudents = async (req, res) => {
     try {
         const students = await Student.find({ status: 'Completed' })
             .populate('user', 'email')
-            .populate('academic_mentor', 'first_name last_name')
-            .lean();
+            .sort({ createdAt: -1 });
 
-        // Get final marks status for each student
-        const Marksheet = require('../models/Marksheet');
-        const studentsWithMarksStatus = await Promise.all(
-            students.map(async (student) => {
-                const marksheet = await Marksheet.findOne({ studentId: student.user._id });
-                return {
-                    ...student,
-                    hasFinalMarks: marksheet?.finalMarkStatus === 'submitted' || false,
-                    marksStatus: marksheet?.finalMarkStatus || 'pending'
-                };
-            })
-        );
-
-        res.json(studentsWithMarksStatus);
+        res.json(students);
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
 };
 
-// @desc    Get student marks and marksheet for final marks submission
+// @desc    Get student marks for final submission
 // @route   GET /api/coordinator/final-marks/student/:studentId
-// @access  Private (Coordinator/Admin)
+// @access  Private (Coordinator)
 const getStudentMarksForFinalSubmission = async (req, res) => {
     try {
-        const { studentId } = req.params;
-        const Marksheet = require('../models/Marksheet');
-
-        const student = await Student.findById(studentId)
-            .populate('user', 'email first_name last_name')
-            .populate('academic_mentor', 'first_name last_name');
-
-        if (!student) {
-            return res.status(404).json({ message: 'Student not found' });
-        }
-
-        if (student.status !== 'Completed') {
-            return res.status(400).json({ message: 'Only students with completed internships can have final marks' });
-        }
-
-        const marksheet = await Marksheet.findOne({ studentId: student.user._id })
-            .populate('mentorId', 'first_name last_name');
+        const marksheet = await Marksheet.findOne({ studentId: req.params.studentId });
 
         if (!marksheet) {
-            return res.status(404).json({ message: 'No marksheet found for this student' });
+            return res.status(404).json({ message: 'Marksheet not found' });
         }
 
         res.json({
-            student: {
-                _id: student._id,
-                cb_number: student.cb_number,
-                first_name: student.first_name,
-                last_name: student.last_name,
-                email: student.user.email,
-                academic_mentor: student.academic_mentor
-            },
-            marksheet: {
-                _id: marksheet._id,
-                academicMentorMarks: {
-                    technical: marksheet.marks.technical,
-                    softSkills: marksheet.marks.softSkills,
-                    presentation: marksheet.marks.presentation,
-                    total: marksheet.marks.total
-                },
-                academicMentorComments: {
-                    technical: marksheet.comments.technical,
-                    softSkills: marksheet.comments.softSkills,
-                    presentation: marksheet.comments.presentation
-                },
-                industryMentorMarks: marksheet.industryMentorMarks,
-                industryMentorComments: marksheet.industryMentorComments,
-                finalMarks: marksheet.finalMarks,
-                finalMarkStatus: marksheet.finalMarkStatus,
-                submittedDate: marksheet.submittedDate,
-                finalMarksSubmittedDate: marksheet.finalMarksSubmittedDate
-            }
+            _id: marksheet._id,
+            academicMentorMarks: marksheet.marks?.total || 0,
+            academicMentorComments: marksheet.comments?.presentation || '',
+            industryMentorMarks: marksheet.industryMentorMarks,
+            industryMentorComments: marksheet.industryMentorComments,
+            finalMarks: marksheet.finalMarks,
+            finalMarkStatus: marksheet.finalMarkStatus,
+            finalMarksSubmittedDate: marksheet.finalMarksSubmittedDate
         });
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
 };
 
-// @desc    Submit final marks (coordinator assigns industry mentor marks)
+// @desc    Submit final marks
 // @route   POST /api/coordinator/final-marks/submit/:studentId
-// @access  Private (Coordinator/Admin)
+// @access  Private (Coordinator)
 const submitFinalMarks = async (req, res) => {
     try {
-        const { studentId } = req.params;
         const { industryMentorMarks, industryMentorComments } = req.body;
-        const Marksheet = require('../models/Marksheet');
 
-        // Validation
-        if (industryMentorMarks === undefined || industryMentorMarks === null) {
+        if (industryMentorMarks === null || industryMentorMarks === undefined) {
             return res.status(400).json({ message: 'Industry mentor marks are required' });
         }
 
-        if (typeof industryMentorMarks !== 'number' || industryMentorMarks < 0 || industryMentorMarks > 40) {
-            return res.status(400).json({ message: 'Industry mentor marks must be between 0 and 40' });
+        if (industryMentorMarks < 0 || industryMentorMarks > 40) {
+            return res.status(400).json({ message: 'Industry marks must be between 0 and 40' });
         }
 
-        const student = await Student.findById(studentId).populate('user');
-        if (!student) {
-            return res.status(404).json({ message: 'Student not found' });
-        }
+        const marksheet = await Marksheet.findOne({ studentId: req.params.studentId });
 
-        if (student.status !== 'Completed') {
-            return res.status(400).json({ message: 'Only students with completed internships can have final marks' });
-        }
-
-        const marksheet = await Marksheet.findOne({ studentId: student.user._id });
         if (!marksheet) {
-            return res.status(404).json({ message: 'No marksheet found for this student' });
+            return res.status(404).json({ message: 'Marksheet not found' });
         }
 
-        if (!marksheet.marks.total) {
-            return res.status(400).json({ message: 'Academic mentor marks not submitted yet' });
-        }
+        const academicMarks = marksheet.marks?.total || 0;
+        const finalMarks = academicMarks + industryMentorMarks;
 
-        // Calculate final marks
-        const finalMarks = marksheet.marks.total + industryMentorMarks;
-
-        // Update marksheet
         marksheet.industryMentorMarks = industryMentorMarks;
-        marksheet.industryMentorComments = industryMentorComments || null;
+        marksheet.industryMentorComments = industryMentorComments || '';
         marksheet.finalMarks = finalMarks;
         marksheet.finalMarkStatus = 'submitted';
         marksheet.finalMarksSubmittedDate = new Date();
@@ -694,12 +628,7 @@ const submitFinalMarks = async (req, res) => {
 
         res.json({
             message: 'Final marks submitted successfully',
-            marksheet: {
-                academicMentorTotal: marksheet.marks.total,
-                industryMentorMarks: industryMentorMarks,
-                finalMarks: finalMarks,
-                finalMarkStatus: 'submitted'
-            }
+            marksheet
         });
     } catch (error) {
         res.status(500).json({ message: error.message });

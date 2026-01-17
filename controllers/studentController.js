@@ -320,46 +320,6 @@ const deleteAccount = async (req, res) => {
     }
 };
 
-// @desc    Get final marks for student
-// @route   GET /api/students/final-marks
-// @access  Private (Student)
-const getFinalMarks = async (req, res) => {
-    try {
-        const Marksheet = require('../models/Marksheet');
-        const student = await Student.findOne({ user: req.user._id });
-
-        if (!student) {
-            return res.status(404).json({ message: 'Student profile not found' });
-        }
-
-        // Get marksheet with final marks
-        const marksheet = await Marksheet.findOne({ studentId: req.user._id })
-            .populate('academicMentorId', 'first_name last_name email');
-
-        if (!marksheet) {
-            return res.status(404).json({ message: 'Marksheet not found' });
-        }
-
-        // Only return if final marks have been submitted
-        if (marksheet.finalMarkStatus !== 'submitted') {
-            return res.status(400).json({ message: 'Final marks have not been submitted yet' });
-        }
-
-        res.json({
-            academicMentorMarks: marksheet.academicMentorMarks,
-            academicMentorComments: marksheet.academicMentorComments,
-            industryMentorMarks: marksheet.industryMentorMarks,
-            industryMentorComments: marksheet.industryMentorComments,
-            finalMarks: marksheet.finalMarks,
-            finalMarkStatus: marksheet.finalMarkStatus,
-            finalMarksSubmittedDate: marksheet.finalMarksSubmittedDate,
-            academicMentor: marksheet.academicMentorId
-        });
-    } catch (error) {
-        res.status(500).json({ message: error.message });
-    }
-};
-
 module.exports = {
     getProfile,
     updateProfile,
@@ -369,5 +329,4 @@ module.exports = {
     getStatus,
     downloadCVs,
     deleteAccount,
-    getFinalMarks,
 };
