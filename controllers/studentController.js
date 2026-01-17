@@ -1,5 +1,6 @@
 const Student = require('../models/Student');
 const User = require('../models/User');
+const Marksheet = require('../models/Marksheet');
 const { createNotification } = require('./notificationController');
 
 // @desc    Get student profile
@@ -320,6 +321,57 @@ const deleteAccount = async (req, res) => {
     }
 };
 
+// @desc    Get final marks for student
+// @route   GET /api/student/:studentId/final-marks
+// @access  Private (Student can only access their own marks)
+const getFinalMarks = async (req, res) => {
+    try {
+        const { studentId } = req.params;
+
+        // Ensure student can only access their own marks
+        const student = await Student.findById(studentId).populate('user');
+        if (!student) {
+            return res.status(404).json({ message: 'Student not found' });
+        }
+
+        if (req.user._id.toString() !== student.user._id.toString()) {
+            return res.status(403).json({ message: 'Unauthorized' });
+        }
+
+        const marksheet = await Marksheet.findOne({ studentId: student.user._id })
+            .populate('mentorId', 'first_name last_name');
+
+        if (!marksheet || marksheet.finalMarkStatus !== 'submitted') {
+            return res.status(404).json({ message: 'Final marks not available yet' });
+        }
+
+        res.json({
+            marksheet: {
+                _id: marksheet._id,
+                academicMentorMarks: {
+                    technical: marksheet.marks.technical,
+                    softSkills: marksheet.marks.softSkills,
+                    presentation: marksheet.marks.presentation,
+                    total: marksheet.marks.total
+                },
+                academicMentorComments: {
+                    technical: marksheet.comments.technical,
+                    softSkills: marksheet.comments.softSkills,
+                    presentation: marksheet.comments.presentation
+                },
+                industryMentorMarks: marksheet.industryMentorMarks,
+                industryMentorComments: marksheet.industryMentorComments,
+                finalMarks: marksheet.finalMarks,
+                finalMarkStatus: marksheet.finalMarkStatus,
+                finalMarksSubmittedDate: marksheet.finalMarksSubmittedDate,
+                mentorInfo: marksheet.mentorId
+            }
+        });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
 module.exports = {
     getProfile,
     updateProfile,
@@ -329,4 +381,5 @@ module.exports = {
     getStatus,
     downloadCVs,
     deleteAccount,
+    getFinalMarks,
 };

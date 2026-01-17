@@ -343,24 +343,11 @@ exports.getStudentSubmissions = async (req, res) => {
 
         const isLogbookComplete = approvedLogbooks >= expectedTotal && expectedTotal > 0;
 
-        // Fetch Academic Marksheet (with final marks if published)
-        const academicMarksheet = await Marksheet.findOne({
-            studentId,
-            mentorId: { $exists: true }
-        }).sort({ createdAt: -1 });
-
         res.status(200).json({
             marksheet: marksheet || null,
             marksheetCount: marksheetCount,
             presentation: presentation || null,
             presentationCount: presentationCount,
-            academicMarksheet: academicMarksheet || null,
-            finalMarks: academicMarksheet?.isPublished ? {
-                academic: academicMarksheet.marks?.total || 0,
-                industry: academicMarksheet.industryMarks || 0,
-                total: academicMarksheet.finalMarks || 0,
-                industryComments: academicMarksheet.industryComments
-            } : null,
             logbookStatus: {
                 complete: isLogbookComplete,
                 total: expectedTotal, // Send EXPECTED total to frontend

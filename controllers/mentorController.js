@@ -200,9 +200,53 @@ const getAssignedStudentsWithMarksheet = async (req, res) => {
     }
 };
 
+// @desc    Get students with final marks for mentor view
+// @route   GET /api/mentor/final-marks
+// @access  Private (Academic Mentor)
+const getMentorStudentsWithFinalMarks = async (req, res) => {
+    try {
+        const mentor = await AcademicMentor.findOne({ user: req.user._id });
+        if (!mentor) {
+            return res.status(404).json({ message: 'Mentor profile not found' });
+        }
+
+        const students = await Student.find({ academic_mentor: mentor._id })
+            .populate('user', 'email')
+            .sort({ createdAt: -1 });
+
+        // Get marksheets with final marks for these students
+        const studentUserIds = students.map(s => s.user?._id);
+        const marksheets = await Marksheet.find({
+            studentId: { $in: studentUserIds },
+            mentorId: { $exists: true }
+        });
+
+        const studentsWithMarks = students.map(student => {
+            const marksheet = marksheets.find(m => m.studentId.toString() === student.user._id.toString());
+            return {
+                _id: student._id,
+                first_name: student.first_name,
+                last_name: student.last_name,
+                cb_number: student.cb_number,
+                email: student.user.email,
+                academicMentorMarks: marksheet?.marks?.total || null,
+                industryMentorMarks: marksheet?.industryMentorMarks || null,
+                finalMarks: marksheet?.finalMarks || null,
+                finalMarkStatus: marksheet?.finalMarkStatus || 'pending',
+                finalMarksSubmittedDate: marksheet?.finalMarksSubmittedDate || null
+            };
+        });
+
+        res.json(studentsWithMarks);
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
 module.exports = {
     getAssignedStudents,
     getStudentProfile,
     submitMarksheet,
     getAssignedStudentsWithMarksheet,
+    getMentorStudentsWithFinalMarks,
 };

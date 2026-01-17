@@ -8,6 +8,7 @@ const {
     getApplications,
     getStatus,
     deleteAccount,
+    getFinalMarks,
 } = require('../controllers/studentController');
 const { protect } = require('../middleware/authMiddleware');
 const upload = require('../middleware/uploadMiddleware');
@@ -45,5 +46,6 @@ router.post('/upload-picture', (req, res, next) => {
 
 router.get('/applications', getApplications);
 router.get('/status', getStatus);
+router.get('/:studentId/final-marks', getFinalMarks);
 
 module.exports = router;

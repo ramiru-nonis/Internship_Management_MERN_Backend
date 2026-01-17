@@ -30,11 +30,33 @@ const marksheetSchema = new mongoose.Schema({
         softSkills: String,
         presentation: String
     },
-    // Coordinator Final Marks
-    industryMarks: { type: Number, min: 0, max: 40 },
-    industryComments: String,
-    finalMarks: { type: Number, max: 100 },
-    isPublished: { type: Boolean, default: false }
+    // Industry Mentor Marks (entered by Coordinator)
+    industryMentorMarks: {
+        type: Number,
+        min: 0,
+        max: 40,
+        default: null
+    },
+    industryMentorComments: {
+        type: String,
+        default: null
+    },
+    finalMarks: {
+        type: Number,
+        min: 0,
+        max: 100,
+        default: null
+    },
+    // Status tracking
+    finalMarkStatus: {
+        type: String,
+        enum: ['pending', 'submitted', 'finalized'],
+        default: 'pending'
+    },
+    finalMarksSubmittedDate: {
+        type: Date,
+        default: null
+    }
 }, { timestamps: true });
 
 module.exports = mongoose.model('Marksheet', marksheetSchema);
