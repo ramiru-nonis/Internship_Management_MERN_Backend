@@ -33,6 +33,131 @@ const isLogbookRequirementsMet = async (studentId) => {
     return approvedCount >= expectedMonths;
 };
 
+const getStudentsWithFinalSubmissions = async (req, res) => {
+    try {
+        const Student = require('../models/Student');
+        const Marksheet = require('../models/Marksheet');
+
+        // 1. Get all students who are "Completed" (or ready for grading)
+        // Adjust status check if needed, e.g., 'Internship Started' or specific status
+        const students = await Student.find({ status: 'Completed' }) // Assuming 'Completed' is the status before final grading
+            .populate('user', 'email')
+            .lean();
+
+        if (!students.length) return res.json([]);
+
+        const studentUserIds = students.map(s => s.user?._id);
+
+        // 2. Find their Academic Marksheets
+        const marksheets = await Marksheet.find({
+            studentId: { $in: studentUserIds },
+            mentorId: { $exists: true } // Must have academic mentor marks
+        });
+
+        // 3. Filter students who have an academic marksheet
+        // And optionally filter out those who are already fully graded if this view is only for "Pending"
+        const studentsReady = students.filter(s =>
+            marksheets.some(m => m.studentId.toString() === s.user._id.toString())
+        );
+
+        // 4. Format response
+        const formatted = studentsReady.map(s => {
+            const ms = marksheets.find(m => m.studentId.toString() === s.user._id.toString());
+            return {
+                _id: s._id,
+                userId: s.user._id,
+                name: `${s.first_name} ${s.last_name}`,
+                cb_number: s.cb_number,
+                profile_picture: s.profile_picture,
+                batch: s.batch,
+                finalGradingStatus: ms.finalGradingStatus || 'Pending'
+            };
+        });
+
+        res.json(formatted);
+    } catch (error) {
+        console.error("Error fetching final students:", error);
+        res.status(500).json({ message: "Server Error" });
+    }
+};
+
+const getStudentGradingDetails = async (req, res) => {
+    try {
+        const { studentId } = req.params; // userId
+        const Student = require('../models/Student');
+        const Marksheet = require('../models/Marksheet');
+        const Presentation = require('../models/Presentation');
+
+        const student = await Student.findOne({ user: studentId });
+        if (!student) return res.status(404).json({ message: "Student not found" });
+
+        const academicMarksheet = await Marksheet.findOne({
+            studentId,
+            mentorId: { $exists: true }
+        });
+
+        const presentation = await Presentation.findOne({ studentId }).sort({ createdAt: -1 });
+
+        res.json({
+            student: {
+                name: `${student.first_name} ${student.last_name}`,
+                cbNumber: student.cb_number,
+                profilePicture: student.profile_picture
+            },
+            academicMarksheet,
+            presentation
+        });
+
+    } catch (error) {
+        console.error("Error fetching grading details:", error);
+        res.status(500).json({ message: "Server Error" });
+    }
+};
+
+const submitFinalMarks = async (req, res) => {
+    try {
+        const { studentId, industryMarks } = req.body;
+        const Marksheet = require('../models/Marksheet');
+        const Notification = require('../models/Notification');
+
+        if (industryMarks === undefined || industryMarks === null || industryMarks < 0 || industryMarks > 40) {
+            return res.status(400).json({ message: "Invalid Industry Marks (0-40)" });
+        }
+
+        const marksheet = await Marksheet.findOne({
+            studentId,
+            mentorId: { $exists: true }
+        });
+
+        if (!marksheet) return res.status(404).json({ message: "Academic Marksheet not found" });
+
+        const academicTotal = marksheet.marks?.total || 0;
+        const finalTotal = academicTotal + industryMarks;
+
+        marksheet.industryMarks = industryMarks;
+        marksheet.finalTotal = finalTotal;
+        marksheet.finalGradingStatus = 'Completed';
+        await marksheet.save();
+
+        // Notify Student
+        await Notification.create({
+            recipient: studentId,
+            message: `Your final internship grade has been released. Total: ${finalTotal}/100.`,
+            type: 'success'
+        });
+
+        res.json({ message: "Final grades submitted successfully", marksheet });
+
+    } catch (error) {
+        console.error("Error submitting final marks:", error);
+        res.status(500).json({ message: "Server Error" });
+    }
+};
+
+exports.getStudentsWithFinalSubmissions = getStudentsWithFinalSubmissions;
+exports.getStudentGradingDetails = getStudentGradingDetails;
+exports.submitFinalMarks = submitFinalMarks;
+
 exports.uploadMarksheet = async (req, res) => {
     try {
         const { studentId } = req.body;

@@ -44,7 +44,11 @@ router.post('/presentation', upload.single('presentation'), submissionController
 router.get('/', submissionController.getAllSubmissions);
 router.post('/notify', submissionController.notifySubmission);
 router.put('/presentation/:id/schedule', submissionController.schedulePresentation);
-// Final grading routes removed as per request
+// Final Grading Routes
+router.get('/final-students', submissionController.getStudentsWithFinalSubmissions);
+router.get('/grading/:studentId', submissionController.getStudentGradingDetails);
+router.post('/final-grade', submissionController.submitFinalMarks);
+
 router.get('/student/:studentId', submissionController.getStudentSubmissions);
 
 module.exports = router;
