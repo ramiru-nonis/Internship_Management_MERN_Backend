@@ -361,6 +361,43 @@ exports.getStudentSubmissions = async (req, res) => {
     }
 };
 
+exports.getFinalSubmissionStudents = async (req, res) => {
+    try {
+        const Student = require('../models/Student');
+        const User = require('../models/User');
+
+        // Get all presentations and marksheets
+        const allPresentations = await Presentation.find().populate('studentId', '_id');
+        const allMarksheets = await Marksheet.find({ mentorId: { $exists: true } }).populate('studentId', '_id');
+
+        // Create maps of students with presentations and marksheets
+        const presentationStudentIds = new Set(allPresentations.map(p => p.studentId?._id?.toString()).filter(Boolean));
+        const marksheetStudentIds = new Set(allMarksheets.map(m => m.studentId?._id?.toString()).filter(Boolean));
+
+        // Get students who have BOTH marksheet and presentation
+        const studentsWithBothSubmissions = Array.from(presentationStudentIds).filter(id => marksheetStudentIds.has(id));
+
+        // Fetch student and user details
+        const studentsData = await Student.find({ user: { $in: studentsWithBothSubmissions } }).populate('user', 'email');
+
+        const formattedStudents = studentsData.map(student => ({
+            _id: student._id,
+            userId: student.user?._id,
+            firstName: student.first_name,
+            lastName: student.last_name,
+            cbNumber: student.cb_number,
+            profilePicture: student.profile_picture,
+            email: student.user?.email,
+            status: student.status
+        }));
+
+        res.status(200).json(formattedStudents);
+    } catch (error) {
+        console.error('Error fetching final submission students:', error);
+        res.status(500).json({ message: 'Error fetching final submission students', error });
+    }
+};
+
 exports.schedulePresentation = async (req, res) => {
     try {
         const { id } = req.params;
