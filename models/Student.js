@@ -59,10 +59,6 @@ const studentSchema = mongoose.Schema({
         ref: 'AcademicMentor',
         default: null,
     },
-    combinedLogbookUrl: {
-        type: String,
-        default: "",
-    },
 }, {
     timestamps: true,
 });

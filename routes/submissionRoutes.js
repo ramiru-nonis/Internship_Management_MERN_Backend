@@ -44,9 +44,15 @@ router.post('/presentation', upload.single('presentation'), submissionController
 router.get('/', submissionController.getAllSubmissions);
 router.post('/notify', submissionController.notifySubmission);
 router.put('/presentation/:id/schedule', submissionController.schedulePresentation);
-router.get('/final-students', submissionController.getStudentsWithFinalSubmissions);
-router.get('/grading/:studentId', submissionController.getStudentGradingDetails);
-router.post('/final-grade', submissionController.submitFinalMarks);
+// Final grading routes removed as per request
+// Final grading routes removed as per request
 router.get('/student/:studentId', submissionController.getStudentSubmissions);
+
+// Proxy View Routes (Force Inline)
+router.get('/marksheets/:id/view', submissionController.viewMarksheet);
+router.get('/presentations/:id/view', submissionController.viewPresentation);
+
+// Eligibility Check
+router.get('/eligibility/:studentId', submissionController.checkEligibility);
 
 module.exports = router;

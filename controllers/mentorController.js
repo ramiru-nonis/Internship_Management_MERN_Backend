@@ -138,21 +138,16 @@ const submitMarksheet = async (req, res) => {
         });
 
         if (marksheet) {
-            marksheet.fileUrl = fileUrl;
-            marksheet.mentorId = mentor._id;
-            marksheet.marks = marks;
-            marksheet.comments = comments;
-            marksheet.submittedDate = Date.now();
-            await marksheet.save();
-        } else {
-            marksheet = await Marksheet.create({
-                studentId: student.user._id,
-                mentorId: mentor._id,
-                fileUrl,
-                marks,
-                comments
-            });
+            return res.status(400).json({ message: 'Marksheet has already been submitted for this student and cannot be edited.' });
         }
+
+        marksheet = await Marksheet.create({
+            studentId: student.user._id,
+            mentorId: mentor._id,
+            fileUrl,
+            marks,
+            comments
+        });
 
         res.status(201).json({ message: 'Marksheet generated and submitted successfully', marksheet });
     } catch (error) {
@@ -177,29 +172,31 @@ const getAssignedStudentsWithMarksheet = async (req, res) => {
 
         const Marksheet = require('../models/Marksheet');
 
-        // Get all ACADEMIC marksheets for these students
+        // Get ALL marksheets for these students to differentiate between Academic and Industry
         const studentUserIds = students.map(s => s.user?._id);
-        const marksheets = await Marksheet.find({
-            studentId: { $in: studentUserIds },
-            mentorId: { $exists: true }
+        const allMarksheets = await Marksheet.find({
+            studentId: { $in: studentUserIds }
         });
 
-        const marksheetMap = {};
-        marksheets.forEach(m => {
-            marksheetMap[m.studentId.toString()] = {
-                has: true,
-                finalTotal: m.finalTotal,
-                finalGradingStatus: m.finalGradingStatus
-            };
+        const academicMarksheetMap = {};
+        const industryMarksheetMap = {};
+
+        allMarksheets.forEach(m => {
+            if (m.mentorId) {
+                academicMarksheetMap[m.studentId.toString()] = m;
+            } else {
+                industryMarksheetMap[m.studentId.toString()] = m;
+            }
         });
 
         const studentsWithStatus = students.map(s => {
-            const msData = marksheetMap[s.user?._id?.toString()];
+            const sid = s.user?._id?.toString();
             return {
                 ...s.toObject(),
-                hasMarksheet: !!msData,
-                finalTotal: msData?.finalTotal,
-                finalGradingStatus: msData?.finalGradingStatus
+                marksheet: academicMarksheetMap[sid] || null, // Academic Marksheet
+                industryMarksheet: industryMarksheetMap[sid] || null, // Industry Marksheet
+                isFinalized: academicMarksheetMap[sid]?.isFinalized || false,
+                hasMarksheet: !!academicMarksheetMap[sid]
             };
         });
 

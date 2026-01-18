@@ -26,11 +26,11 @@ const isLogbookRequirementsMet = async (studentId) => {
     let expectedMonths = (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth()) + 1;
     if (expectedMonths < 1) expectedMonths = 1;
 
-    // 3. Count Approved Logbooks
+    // 3. Count Existing Logbooks (Draft, Pending, or Approved)
     const logbooks = await Logbook.find({ studentId });
-    const approvedCount = logbooks.filter(lb => lb.status === 'Approved').length;
+    const existingCount = logbooks.length;
 
-    return approvedCount >= expectedMonths;
+    return existingCount >= expectedMonths;
 };
 
 exports.uploadMarksheet = async (req, res) => {
@@ -42,7 +42,7 @@ exports.uploadMarksheet = async (req, res) => {
         // Enforce Logbook Completion
         const logbookComplete = await isLogbookRequirementsMet(studentId);
         if (!logbookComplete) {
-            return res.status(403).json({ message: "Final submission not allowed. You must have Approved Logbooks for your entire placement duration." });
+            return res.status(403).json({ message: "Final submission not allowed. You must have logbook entries for your entire placement duration." });
         }
 
         // Check attempt limit
@@ -84,7 +84,7 @@ exports.uploadPresentation = async (req, res) => {
         // Enforce Logbook Completion
         const logbookComplete = await isLogbookRequirementsMet(studentId);
         if (!logbookComplete) {
-            return res.status(403).json({ message: "Final submission not allowed. You must have Approved Logbooks for your entire placement duration." });
+            return res.status(403).json({ message: "Final submission not allowed. You must have logbook entries for your entire placement duration." });
         }
 
         // Check attempt limit
@@ -134,7 +134,9 @@ exports.getAllSubmissions = async (req, res) => {
 
         const PlacementForm = require('../models/PlacementForm');
 
-        const logbooks = await Logbook.find({ status: { $ne: 'Draft' } }).populate('studentId');
+        const logbooks = await Logbook.find({ status: { $ne: 'Draft' } })
+            .populate('studentId')
+            .sort({ submittedDate: -1, createdAt: -1 });
         // Fetch ALL submissions
         const allMarksheets = await Marksheet.find().populate('studentId').sort({ createdAt: -1 });
         const allPresentations = await Presentation.find().populate('studentId').sort({ createdAt: -1 });
@@ -148,32 +150,11 @@ exports.getAllSubmissions = async (req, res) => {
             })
             .sort({ createdAt: -1 });
 
-        // Filter to keep only the LATEST submission per student for Marksheet & Presentation
-        const latestMarksheets = [];
-        const seenMarksheetStudents = new Set();
-        for (const m of allMarksheets) {
-            const sid = m.studentId?._id?.toString();
-            if (sid && !seenMarksheetStudents.has(sid)) {
-                latestMarksheets.push(m);
-                seenMarksheetStudents.add(sid);
-            }
-        }
-
-        const latestPresentations = [];
-        const seenPresentationStudents = new Set();
-        for (const p of allPresentations) {
-            const sid = p.studentId?._id?.toString();
-            if (sid && !seenPresentationStudents.has(sid)) {
-                latestPresentations.push(p);
-                seenPresentationStudents.add(sid);
-            }
-        }
-
-        // Extract User IDs to fetch Student Profiles
+        // Extract User IDs to fetch Student Profiles for mapping
         const userIds = [
             ...logbooks.map(l => l.studentId?._id),
-            ...latestMarksheets.map(m => m.studentId?._id),
-            ...latestPresentations.map(p => p.studentId?._id),
+            ...allMarksheets.map(m => m.studentId?._id),
+            ...allPresentations.map(p => p.studentId?._id),
             ...allPlacements.map(pl => pl.student?.user)
         ].filter(id => id);
 
@@ -188,7 +169,7 @@ exports.getAllSubmissions = async (req, res) => {
             let user = item.studentId;
             let student = null;
 
-            if (type === 'Placement') {
+            if (type === 'Placements') {
                 student = item.student;
                 user = student?.user;
             } else {
@@ -201,8 +182,8 @@ exports.getAllSubmissions = async (req, res) => {
                 name: student ? `${student.first_name} ${student.last_name}` : (user?.username || "Unknown Student"),
                 cbNumber: student?.cb_number || "N/A",
                 profilePicture: student?.profile_picture || null,
-                status: item.status || (type === 'Placement' ? 'Submitted' : 'Submitted'),
-                date: item.submittedDate || item.createdAt, // Fallback to createdAt
+                status: item.status || 'Submitted',
+                date: item.submittedDate || item.createdAt || item.updatedAt, // Fallback to createdAt/updatedAt
                 scheduledDate: item.scheduledDate || null,
                 meetLink: item.meetLink || null,
                 fileUrl: item.fileUrl,
@@ -210,7 +191,7 @@ exports.getAllSubmissions = async (req, res) => {
                 logbookId: type === 'Logbook' ? item._id : undefined,
                 studentId: user?._id || user, // Include user ID for history fetching
                 // Additional fields for Placement Details
-                placement: type === 'Placement' ? {
+                placement: type === 'Placements' ? {
                     company_name: item.company_name,
                     position: item.position || item.placement_job_title,
                     start_date: item.start_date,
@@ -227,31 +208,10 @@ exports.getAllSubmissions = async (req, res) => {
             };
         };
 
-        // Deduplicate Logbooks: Show only the latest submission per student
-        const uniqueLogbooks = [];
-        const studentLogbookMap = new Map();
-
-        logbooks.forEach(lb => {
-            const sid = lb.studentId?._id?.toString();
-            if (!sid) return;
-
-            if (!studentLogbookMap.has(sid)) {
-                studentLogbookMap.set(sid, lb);
-            } else {
-                // Check if current lb is newer than stored lb
-                const stored = studentLogbookMap.get(sid);
-                if (lb.year > stored.year || (lb.year === stored.year && lb.month > stored.month)) {
-                    studentLogbookMap.set(sid, lb);
-                }
-            }
-        });
-
-        studentLogbookMap.forEach(lb => uniqueLogbooks.push(lb));
-
         const combined = [
-            ...uniqueLogbooks.map(l => mapSubmission(l, 'Logbook')),
-            ...latestMarksheets.map(m => mapSubmission(m, 'Marksheet')),
-            ...latestPresentations.map(p => mapSubmission(p, 'Exit Presentation')),
+            ...logbooks.map(l => mapSubmission(l, 'Logbook')),
+            ...allMarksheets.map(m => mapSubmission(m, 'Marksheet')),
+            ...allPresentations.map(p => mapSubmission(p, 'Exit Presentation')),
             ...allPlacements.map(pl => mapSubmission(pl, 'Placements'))
         ];
 
@@ -270,22 +230,33 @@ exports.notifySubmission = async (req, res) => {
         const Marksheet = require('../models/Marksheet');
         const Presentation = require('../models/Presentation');
 
-        // Verify that both submissions exist (check for at least one of each)
-        const marksheetCount = await Marksheet.countDocuments({ studentId });
+        // Verify that presentation exists (marksheet is now optional)
         const presentationCount = await Presentation.countDocuments({ studentId });
 
-        if (marksheetCount === 0 || presentationCount === 0) {
-            return res.status(400).json({ message: 'Both marksheet and presentation are required to complete the internship.' });
+        if (presentationCount === 0) {
+            return res.status(400).json({ message: 'Final presentation is required to complete the internship.' });
         }
 
         const Student = require('../models/Student');
+        const Logbook = require('../models/Logbook');
         const student = await Student.findOne({ user: studentId });
+
+        // NEW: Automatically submit any DRAFT logbooks
+        await Logbook.updateMany(
+            { studentId, status: 'Draft' },
+            {
+                $set: {
+                    status: 'Pending',
+                    submittedDate: Date.now()
+                }
+            }
+        );
 
         const coordinator = await User.findOne({ role: 'coordinator' });
         if (coordinator && student) {
             await Notification.create({
                 recipient: coordinator._id,
-                message: `Student ${student.first_name} ${student.last_name} (${student.cb_number}) has completed final submission (Marksheet & Presentation).`,
+                message: `Student ${student.first_name} ${student.last_name} (${student.cb_number}) has completed final submission. All logbooks have been automatically submitted.`,
                 type: 'success'
             });
         }
@@ -312,12 +283,23 @@ exports.getStudentSubmissions = async (req, res) => {
         const PlacementForm = require('../models/PlacementForm');
         const Student = require('../models/Student');
 
-        // Fetch LATEST Marksheet (Student/Industry only)
+        // Fetch LATEST Marksheet (Student upload - only for file view/resubmit)
         const marksheet = await Marksheet.findOne({
             studentId,
             mentorId: { $exists: false }
         }).sort({ createdAt: -1 });
-        const marksheetCount = await Marksheet.countDocuments({ studentId });
+
+        // Fetch Official FINALIZED Marksheet (submitted by Mentor/Coordinator)
+        const finalizedMarksheet = await Marksheet.findOne({
+            studentId,
+            mentorId: { $exists: true },
+            isFinalized: true
+        }).sort({ updatedAt: -1 });
+
+        const marksheetCount = await Marksheet.countDocuments({
+            studentId,
+            mentorId: { $exists: false }
+        });
 
         // Fetch LATEST Presentation
         const presentation = await Presentation.findOne({ studentId }).sort({ createdAt: -1 });
@@ -341,10 +323,11 @@ exports.getStudentSubmissions = async (req, res) => {
             }
         }
 
-        const isLogbookComplete = approvedLogbooks >= expectedTotal && expectedTotal > 0;
+        const isLogbookComplete = totalLogbooks >= expectedTotal && expectedTotal > 0;
 
         res.status(200).json({
             marksheet: marksheet || null,
+            finalizedMarksheet: finalizedMarksheet || null,
             marksheetCount: marksheetCount,
             presentation: presentation || null,
             presentationCount: presentationCount,
@@ -353,8 +336,7 @@ exports.getStudentSubmissions = async (req, res) => {
                 total: expectedTotal, // Send EXPECTED total to frontend
                 approved: approvedLogbooks,
                 actualTotal: totalLogbooks
-            },
-            combinedLogbookUrl: studentProfile?.combinedLogbookUrl || null
+            }
         });
     } catch (error) {
         res.status(500).json({ message: 'Error fetching student submissions', error });
@@ -445,6 +427,160 @@ exports.schedulePresentation = async (req, res) => {
     } catch (error) {
         console.error("Error scheduling presentation:", error);
         res.status(500).json({ message: "Failed to schedule presentation.", error });
+    }
+};
+
+// Proxy/View Marksheet (Forces Inline)
+exports.viewMarksheet = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { type } = req.query; // 'academic' (default) or 'industry'
+        const Marksheet = require('../models/Marksheet');
+        const axios = require('axios');
+
+        const marksheet = await Marksheet.findById(id).populate('studentId');
+        if (!marksheet) return res.status(404).json({ message: "Marksheet not found" });
+
+        let fileUrl = marksheet.fileUrl;
+        let label = "Marksheet";
+
+        // Determine which file to serve
+        if (type === 'industry') {
+            fileUrl = marksheet.marks?.industryMarksheetUrl;
+            label = "Industry_Evaluation";
+            if (!fileUrl) return res.status(404).json({ message: "Industry marksheet not found" });
+        } else {
+            label = "Academic_Evaluation";
+        }
+
+        // 1. Handle Cloudinary URL
+        if (fileUrl.startsWith('http')) {
+            try {
+                const response = await axios({
+                    method: 'get',
+                    url: fileUrl,
+                    responseType: 'stream'
+                });
+
+                res.setHeader('Content-Type', 'application/pdf');
+                res.setHeader('Content-Disposition', `inline; filename="${label}_${id}.pdf"`);
+                response.data.pipe(res);
+            } catch (proxyError) {
+                console.error("Proxy error:", proxyError.message);
+                return res.redirect(fileUrl); // Fallback to direct link
+            }
+        }
+        // 2. Handle Local File
+        else {
+            const cwd = process.cwd();
+            // fileUrl might be "/uploads/marksheet/..."
+            const relativePath = fileUrl.startsWith('/') ? fileUrl.substring(1) : fileUrl;
+            const fullPath = path.join(cwd, relativePath);
+
+            if (fs.existsSync(fullPath)) {
+                res.setHeader('Content-Type', 'application/pdf');
+                res.setHeader('Content-Disposition', `inline; filename="${label}_${id}.pdf"`);
+                res.sendFile(fullPath);
+            } else {
+                return res.status(404).json({ message: "File not found on server" });
+            }
+        }
+    } catch (error) {
+        console.error("Error serving marksheet:", error);
+        res.status(500).json({ message: "Error serving file" });
+    }
+};
+
+// Proxy/View Presentation (Forces Inline)
+exports.viewPresentation = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const Presentation = require('../models/Presentation');
+        const axios = require('axios');
+
+        const presentation = await Presentation.findById(id);
+        if (!presentation) return res.status(404).json({ message: "Presentation not found" });
+
+        const fileUrl = presentation.fileUrl;
+
+        if (fileUrl.startsWith('http')) {
+            try {
+                const response = await axios({
+                    method: 'get',
+                    url: fileUrl,
+                    responseType: 'stream'
+                });
+                res.setHeader('Content-Type', 'application/pdf');
+                res.setHeader('Content-Disposition', `inline; filename="Presentation_${id}.pdf"`);
+                response.data.pipe(res);
+            } catch (proxyError) {
+                console.error("Proxy error:", proxyError.message);
+                return res.redirect(fileUrl);
+            }
+        } else {
+            const cwd = process.cwd();
+            const relativePath = fileUrl.startsWith('/') ? fileUrl.substring(1) : fileUrl;
+            const fullPath = path.join(cwd, relativePath);
+
+            if (fs.existsSync(fullPath)) {
+                res.setHeader('Content-Type', 'application/pdf');
+                res.setHeader('Content-Disposition', `inline; filename="Presentation_${id}.pdf"`);
+                res.sendFile(fullPath);
+            } else {
+                return res.status(404).json({ message: "File not found on server" });
+            }
+        }
+    } catch (error) {
+        console.error("Error serving presentation:", error);
+        res.status(500).json({ message: "Error serving file" });
+    }
+};
+
+// Check Eligibility for Final Submission
+exports.checkEligibility = async (req, res) => {
+    try {
+        const { studentId } = req.params;
+        const PlacementForm = require('../models/PlacementForm');
+        const Logbook = require('../models/Logbook');
+
+        // 1. Get Placement Data
+        const placement = await PlacementForm.findOne({ student: studentId });
+        if (!placement) {
+            return res.status(400).json({ eligible: false, message: "Placement details not found. Please complete your placement form first." });
+        }
+
+        const { start_date, end_date } = placement;
+        if (!start_date || !end_date) {
+            return res.status(400).json({ eligible: false, message: "Internship dates are missing in your placement record." });
+        }
+
+        // 2. Calculate Total Required Months
+        const start = new Date(start_date);
+        const end = new Date(end_date);
+        // Calculate months difference inclusive
+        const totalMonths = (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth()) + 1;
+
+        // 3. Count Approved Logbooks
+        // We assume 'studentId' in Logbook refers to the User/Student ID passed in params.
+        // NOTE: Logbook model uses 'User' ref but field is 'studentId'. Verify if matches param.
+        const approvedCount = await Logbook.countDocuments({
+            studentId: studentId,
+            status: 'Approved'
+        });
+
+        // 4. Validate
+        if (approvedCount >= totalMonths) {
+            return res.json({ eligible: true });
+        } else {
+            return res.json({
+                eligible: false,
+                message: `You must have all monthly logbooks approved to access Final Submission. (Approved: ${approvedCount} / Required: ${totalMonths})`
+            });
+        }
+
+    } catch (error) {
+        console.error("Eligibility check failed:", error);
+        res.status(500).json({ eligible: false, message: "Server error checking eligibility." });
     }
 };
 

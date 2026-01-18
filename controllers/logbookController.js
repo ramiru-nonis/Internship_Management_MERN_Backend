@@ -294,8 +294,11 @@ exports.handleMentorActionLink = async (req, res) => {
 
         logbook.status = status;
         if (feedback) logbook.mentorComments = feedback;
-        if (status === 'Rejected' && rejectionReason) {
+        if (status === 'Approved') {
+            logbook.isIndustryApproved = true; // NEW: Set explicit approval flag
+        } else if (status === 'Rejected' && rejectionReason) {
             logbook.rejectionReason = rejectionReason;
+            logbook.isIndustryApproved = false;
         }
 
         // Add to audit log
@@ -307,48 +310,6 @@ exports.handleMentorActionLink = async (req, res) => {
 
         await logbook.save();
         console.log("[DEBUG] Logbook saved with new status");
-
-        // NEW: Check if all logbooks are approved to generate combined PDF
-        if (status === 'Approved' && logbook.studentId) {
-            try {
-                const studentProfile = await Student.findOne({ user: logbook.studentId });
-                const placement = await PlacementForm.findOne({ student: studentProfile?._id });
-
-                if (studentProfile && placement) {
-                    const start = new Date(placement.start_date);
-                    const end = new Date(placement.end_date);
-                    let expectedMonths = (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth()) + 1;
-                    if (expectedMonths < 1) expectedMonths = 1;
-
-                    const allLogbooks = await Logbook.find({ studentId: logbook.studentId });
-                    const approvedLogbooks = allLogbooks.filter(lb => lb.status === 'Approved');
-
-                    if (approvedLogbooks.length >= expectedMonths) {
-                        console.log("[DEBUG] Logbook requirements met. Generating combined PDF...");
-                        // Sort by year and month
-                        approvedLogbooks.sort((a, b) => (a.year * 12 + a.month) - (b.year * 12 + b.month));
-
-                        const pdfPaths = approvedLogbooks
-                            .map(lb => lb.signedPDFPath)
-                            .filter(p => p && p !== "");
-
-                        if (pdfPaths.length > 0) {
-                            const fileName = `Combined_Logbook_${studentProfile.cb_number}_${Date.now()}.pdf`;
-                            const outputPath = path.join(__dirname, '..', 'uploads', 'combined_logbooks', fileName);
-
-                            const success = await mergePDFs(pdfPaths, outputPath);
-                            if (success) {
-                                studentProfile.combinedLogbookUrl = `/uploads/combined_logbooks/${fileName}`;
-                                await studentProfile.save();
-                                console.log("[DEBUG] Combined PDF generated and student profile updated.");
-                            }
-                        }
-                    }
-                }
-            } catch (mergeError) {
-                console.error("[DEBUG] Combined PDF generation failed:", mergeError);
-            }
-        }
 
         // Notify Student (In-App)
         if (logbook.studentId) {
@@ -453,6 +414,8 @@ exports.downloadLogbookPDF = async (req, res) => {
 
         // If a signed PDF exists, serve it
         if (logbook.signedPDFPath) {
+            console.log(`[DEBUG] Serving signed logbook from: ${logbook.signedPDFPath}`);
+
             // Check if it's a URL (Cloudinary)
             if (logbook.signedPDFPath.startsWith('http')) {
                 console.log("[DEBUG] Proxying Cloudinary PDF:", logbook.signedPDFPath);
@@ -487,100 +450,60 @@ exports.downloadLogbookPDF = async (req, res) => {
                 try {
                     const response = await axios({
                         method: 'get',
-                        url: downloadUrl,
+                        url: downloadUrl, // Use signed URL
                         responseType: 'stream',
-                        timeout: 15000,
+                        timeout: 20000,
                         headers: {
-                            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+                            'Accept': 'application/pdf'
                         }
                     });
 
-                    // Set headers
                     res.setHeader('Content-Type', 'application/pdf');
-                    res.setHeader('Content-Disposition', `inline; filename="Signed_Logbook_${studentData.cb_number}_Month_${logbook.month}.pdf"`);
+                    const filename = `Signed_Logbook_${studentData.cb_number || 'ST'}_Month_${logbook.month}.pdf`;
+                    res.setHeader('Content-Disposition', `inline; filename="${filename}"`);
 
                     response.data.pipe(res);
+
+                    response.data.on('error', (err) => {
+                        console.error("[DEBUG] Stream error during PDF proxy:", err);
+                        if (!res.headersSent) {
+                            res.status(500).json({ message: "Error streaming PDF" });
+                        }
+                    });
+
                     return;
                 } catch (proxyError) {
-                    console.error("Error proxying PDF from Cloudinary:", proxyError.message);
-
-                    // Fallback: Redirect to client-side
-                    try {
-                        const cloudinary = require('../config/cloudinary').cloudinary;
-                        const urlObj = new URL(logbook.signedPDFPath);
-                        const pathSegments = urlObj.pathname.split('/');
-
-                        let resourceType = 'auto';
-                        let deliveryType = 'upload';
-                        let publicId = '';
-                        let versionIndex = -1;
-
-                        for (let i = 0; i < pathSegments.length; i++) {
-                            if (pathSegments[i].match(/^v\d+$/)) {
-                                versionIndex = i;
-                                break;
-                            }
-                        }
-
-                        if (versionIndex !== -1) {
-                            if (versionIndex >= 3) {
-                                resourceType = pathSegments[versionIndex - 2];
-                                deliveryType = pathSegments[versionIndex - 1];
-                            }
-                            publicId = pathSegments.slice(versionIndex + 1).join('/');
-                        } else {
-                            const typeIndex = pathSegments.findIndex(s => s === 'upload' || s === 'authenticated' || s === 'private');
-                            if (typeIndex !== -1) {
-                                deliveryType = pathSegments[typeIndex];
-                                resourceType = pathSegments[typeIndex - 1];
-                                publicId = pathSegments.slice(typeIndex + 1).join('/');
-                            }
-                        }
-
-                        if (publicId) {
-                            if (resourceType === 'image' && publicId.toLowerCase().endsWith('.pdf')) {
-                                publicId = publicId.replace(/\.pdf$/i, '');
-                            }
-
-                            const signedUrl = cloudinary.url(publicId, {
-                                resource_type: resourceType,
-                                type: deliveryType,
-                                sign_url: true,
-                                secure: true,
-                                format: (resourceType === 'image') ? 'pdf' : undefined
-                            });
-
-                            return res.redirect(signedUrl);
-                        } else {
-                            return res.redirect(logbook.signedPDFPath);
-                        }
-                    } catch (e) {
-                        return res.redirect(logbook.signedPDFPath);
-                    }
+                    console.error("[DEBUG] Cloudinary proxy failed, attempting direct redirect fallback:", proxyError.message);
+                    return res.redirect(logbook.signedPDFPath);
                 }
             } else {
+                // Local File
                 const fullPath = path.isAbsolute(logbook.signedPDFPath)
                     ? logbook.signedPDFPath
                     : path.join(__dirname, '..', logbook.signedPDFPath);
 
                 if (fs.existsSync(fullPath)) {
                     res.setHeader('Content-Type', 'application/pdf');
-                    res.setHeader('Content-Disposition', `inline; filename="Signed_Logbook_${studentData.cb_number}_Month_${logbook.month}.pdf"`);
+                    res.setHeader('Content-Disposition', `inline; filename="Signed_Logbook_${studentData.cb_number || 'ST'}_Month_${logbook.month}.pdf"`);
                     return res.sendFile(fullPath);
                 } else {
+                    console.error(`[DEBUG] Local PDF file not found at: ${fullPath}`);
                     return res.status(404).json({ message: "Signed logbook file not found on server." });
                 }
             }
         }
 
-        // Fallback: Generate PDF from data if no signed PDF
+        // Fallback: Generate PDF from data if no signed PDF exists
+        console.log("[DEBUG] No signed PDF found, generating from template...");
         res.setHeader('Content-Type', 'application/pdf');
-        res.setHeader('Content-Disposition', `attachment; filename=Logbook_${studentData.cb_number}_Month_${logbook.month}.pdf`);
+        res.setHeader('Content-Disposition', `inline; filename=Logbook_${studentData.cb_number || 'ST'}_Month_${logbook.month}.pdf`);
 
         generateLogbookPDF(logbook, studentData, res);
     } catch (error) {
         console.error("Error generating/fetching PDF:", error);
-        res.status(500).json({ message: 'Error processing PDF request', error: error.message });
+        if (!res.headersSent) {
+            res.status(500).json({ message: 'Error processing PDF request', error: error.message });
+        }
     }
 };
 
@@ -600,6 +523,7 @@ exports.uploadSignedLogbook = async (req, res) => {
         // Save path (handle local vs cloudinary)
         const filePath = req.file.path || req.file.secure_url;
         logbook.signedPDFPath = filePath;
+        logbook.isIndustryApproved = true; // NEW: Auto-approve on PDF upload by mentor
 
         // Add to audit log
         logbook.auditLog.push({

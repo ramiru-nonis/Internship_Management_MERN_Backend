@@ -13,6 +13,8 @@ const {
     deleteMentor,
     assignMentor,
     bulkAssignMentor,
+    saveFinalMarks,
+    getFinalMarksCandidates
 } = require('../controllers/coordinatorController');
 const { downloadCVs } = require('../controllers/studentController');
 const { protect, coordinator } = require('../middleware/authMiddleware');
@@ -28,6 +30,20 @@ router.post('/students/download-cvs', downloadCVs);
 router.get('/students/:id/profile', getStudentProfile);
 router.get('/applications', getAllApplications);
 router.get('/placements', getAllPlacementForms);
+
+// Final Marks
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
+
+const storage = multer.diskStorage({
+    destination: (req, file, cb) => cb(null, 'uploads/marksheet/'),
+    filename: (req, file, cb) => cb(null, `industry-${Date.now()}${path.extname(file.originalname)}`)
+});
+const upload = multer({ storage });
+
+router.get('/marks/candidates', getFinalMarksCandidates);
+router.post('/marks/save', upload.single('industryMarksheet'), saveFinalMarks);
 
 // Mentor Management
 router.post('/mentors', protect, coordinator, createAcademicMentor);
