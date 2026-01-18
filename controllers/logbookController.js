@@ -465,7 +465,7 @@ exports.downloadLogbookPDF = async (req, res) => {
                         method: 'get',
                         url: logbook.signedPDFPath,
                         responseType: 'stream',
-                        timeout: 20000, // Increased timeout for larger PDFs or slow connections
+                        timeout: 20000,
                         headers: {
                             'Accept': 'application/pdf'
                         }
