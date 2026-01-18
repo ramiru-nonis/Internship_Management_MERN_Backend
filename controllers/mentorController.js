@@ -138,21 +138,16 @@ const submitMarksheet = async (req, res) => {
         });
 
         if (marksheet) {
-            marksheet.fileUrl = fileUrl;
-            marksheet.mentorId = mentor._id;
-            marksheet.marks = marks;
-            marksheet.comments = comments;
-            marksheet.submittedDate = Date.now();
-            await marksheet.save();
-        } else {
-            marksheet = await Marksheet.create({
-                studentId: student.user._id,
-                mentorId: mentor._id,
-                fileUrl,
-                marks,
-                comments
-            });
+            return res.status(400).json({ message: 'Marksheet has already been submitted for this student and cannot be edited.' });
         }
+
+        marksheet = await Marksheet.create({
+            studentId: student.user._id,
+            mentorId: mentor._id,
+            fileUrl,
+            marks,
+            comments
+        });
 
         res.status(201).json({ message: 'Marksheet generated and submitted successfully', marksheet });
     } catch (error) {
@@ -200,7 +195,8 @@ const getAssignedStudentsWithMarksheet = async (req, res) => {
                 ...s.toObject(),
                 marksheet: academicMarksheetMap[sid] || null, // Academic Marksheet
                 industryMarksheet: industryMarksheetMap[sid] || null, // Industry Marksheet
-                isFinalized: academicMarksheetMap[sid]?.isFinalized || false
+                isFinalized: academicMarksheetMap[sid]?.isFinalized || false,
+                hasMarksheet: !!academicMarksheetMap[sid]
             };
         });
 
