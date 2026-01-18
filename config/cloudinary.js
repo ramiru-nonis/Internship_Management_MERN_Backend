@@ -24,6 +24,9 @@ const storage = new CloudinaryStorage({
         } else if (file.fieldname === 'profile_picture') {
             folderName += '/profiles';
             resourceType = 'image';
+        } else if (file.fieldname === 'signed_logbook') {
+            folderName += '/logbooks';
+            resourceType = 'raw'; // Ensure PDFs are stored as raw files (no image transformation limits)
         }
 
         return {

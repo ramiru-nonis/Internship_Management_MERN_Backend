@@ -403,14 +403,21 @@ exports.getHistory = async (req, res) => {
 
 // Download Logbook PDF
 exports.downloadLogbookPDF = async (req, res) => {
+    console.log("[DEBUG] downloadLogbookPDF requested for ID:", req.params.id);
     try {
         const { generateLogbookPDF } = require('../utils/logbookTemplate');
 
         const logbook = await Logbook.findById(req.params.id);
-        if (!logbook) return res.status(404).json({ message: 'Logbook not found' });
+        if (!logbook) {
+            console.log("[DEBUG] Logbook not found in DB");
+            return res.status(404).json({ message: 'Logbook not found' });
+        }
 
         const studentData = await Student.findOne({ user: logbook.studentId });
-        if (!studentData) return res.status(404).json({ message: 'Student profile not found' });
+        if (!studentData) {
+            console.log("[DEBUG] Student profile not found for user ID:", logbook.studentId);
+            return res.status(404).json({ message: 'Student profile not found' });
+        }
 
         // If a signed PDF exists, serve it
         if (logbook.signedPDFPath) {
@@ -450,20 +457,19 @@ exports.downloadLogbookPDF = async (req, res) => {
             } else {
                 // Local File
                 // Use process.cwd() to resolve relative paths from the project root (Backend)
-                // This is more robust than assuming __dirname structure
                 const fullPath = path.isAbsolute(logbook.signedPDFPath)
                     ? logbook.signedPDFPath
                     : path.join(process.cwd(), logbook.signedPDFPath);
 
-                console.log(`[DEBUG] Resolved PDF path: ${fullPath}`);
+                console.log(`[DEBUG] Resolved local PDF path: ${fullPath}`);
 
                 if (fs.existsSync(fullPath)) {
                     res.setHeader('Content-Type', 'application/pdf');
                     res.setHeader('Content-Disposition', `inline; filename="Signed_Logbook_${studentData.cb_number || 'ST'}_Month_${logbook.month}.pdf"`);
                     return res.sendFile(fullPath);
                 } else {
-                    console.error(`[DEBUG] Local PDF file not found at: ${fullPath}`);
-                    return res.status(404).json({ message: "Signed logbook file not found on server." });
+                    console.error(`[DEBUG] Local PDF file not found on disk at: ${fullPath}. Falling back to template generation.`);
+                    // Fallthrough to generateLogbookPDF logic below
                 }
             }
         }
