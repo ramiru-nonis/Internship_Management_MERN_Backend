@@ -495,6 +495,7 @@ exports.uploadSignedLogbook = async (req, res) => {
         const filePath = req.file.path || req.file.secure_url;
         logbook.signedPDFPath = filePath;
         logbook.isIndustryApproved = true; // NEW: Auto-approve on PDF upload by mentor
+        logbook.status = 'Approved'; // NEW: Auto-approve status on upload
 
         // Add to audit log
         logbook.auditLog.push({
