@@ -36,6 +36,10 @@ const LogbookSchema = new mongoose.Schema({
         type: String,
         default: ""
     },
+    isIndustryApproved: {
+        type: Boolean,
+        default: false
+    },
     auditLog: [{
         action: String,
         timestamp: { type: Date, default: Date.now },

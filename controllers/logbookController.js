@@ -294,8 +294,11 @@ exports.handleMentorActionLink = async (req, res) => {
 
         logbook.status = status;
         if (feedback) logbook.mentorComments = feedback;
-        if (status === 'Rejected' && rejectionReason) {
+        if (status === 'Approved') {
+            logbook.isIndustryApproved = true; // NEW: Set explicit approval flag
+        } else if (status === 'Rejected' && rejectionReason) {
             logbook.rejectionReason = rejectionReason;
+            logbook.isIndustryApproved = false;
         }
 
         // Add to audit log
@@ -462,14 +465,13 @@ exports.downloadLogbookPDF = async (req, res) => {
                         method: 'get',
                         url: logbook.signedPDFPath,
                         responseType: 'stream',
-                        timeout: 10000,
+                        timeout: 20000, // Increased timeout for larger PDFs or slow connections
                         headers: {
                             'Accept': 'application/pdf'
                         }
                     });
 
                     res.setHeader('Content-Type', 'application/pdf');
-                    // Ensure the filename is correct
                     const filename = `Signed_Logbook_${studentData.cb_number || 'ST'}_Month_${logbook.month}.pdf`;
                     res.setHeader('Content-Disposition', `inline; filename="${filename}"`);
 
@@ -484,8 +486,7 @@ exports.downloadLogbookPDF = async (req, res) => {
 
                     return;
                 } catch (proxyError) {
-                    console.error("[DEBUG] Cloudinary proxy failed, attempting redirect fallback:", proxyError.message);
-                    // Fallback to direct redirect if proxying fails
+                    console.error("[DEBUG] Cloudinary proxy failed, attempting direct redirect fallback:", proxyError.message);
                     return res.redirect(logbook.signedPDFPath);
                 }
             } else {
@@ -535,6 +536,7 @@ exports.uploadSignedLogbook = async (req, res) => {
         // Save path (handle local vs cloudinary)
         const filePath = req.file.path || req.file.secure_url;
         logbook.signedPDFPath = filePath;
+        logbook.isIndustryApproved = true; // NEW: Auto-approve on PDF upload by mentor
 
         // Add to audit log
         logbook.auditLog.push({
