@@ -148,32 +148,11 @@ exports.getAllSubmissions = async (req, res) => {
             })
             .sort({ createdAt: -1 });
 
-        // Filter to keep only the LATEST submission per student for Marksheet & Presentation
-        const latestMarksheets = [];
-        const seenMarksheetStudents = new Set();
-        for (const m of allMarksheets) {
-            const sid = m.studentId?._id?.toString();
-            if (sid && !seenMarksheetStudents.has(sid)) {
-                latestMarksheets.push(m);
-                seenMarksheetStudents.add(sid);
-            }
-        }
-
-        const latestPresentations = [];
-        const seenPresentationStudents = new Set();
-        for (const p of allPresentations) {
-            const sid = p.studentId?._id?.toString();
-            if (sid && !seenPresentationStudents.has(sid)) {
-                latestPresentations.push(p);
-                seenPresentationStudents.add(sid);
-            }
-        }
-
-        // Extract User IDs to fetch Student Profiles
+        // Extract User IDs to fetch Student Profiles for mapping
         const userIds = [
             ...logbooks.map(l => l.studentId?._id),
-            ...latestMarksheets.map(m => m.studentId?._id),
-            ...latestPresentations.map(p => p.studentId?._id),
+            ...allMarksheets.map(m => m.studentId?._id),
+            ...allPresentations.map(p => p.studentId?._id),
             ...allPlacements.map(pl => pl.student?.user)
         ].filter(id => id);
 
@@ -188,8 +167,11 @@ exports.getAllSubmissions = async (req, res) => {
             let user = item.studentId;
             let student = null;
 
-            if (type === 'Placement') {
+            if (type === 'Placements') {
                 student = item.student;
+                user = student?.user;
+            } else if (type === 'Combined Logbook') {
+                student = item;
                 user = student?.user;
             } else {
                 student = user ? studentMap[user._id.toString()] : null;
@@ -201,16 +183,16 @@ exports.getAllSubmissions = async (req, res) => {
                 name: student ? `${student.first_name} ${student.last_name}` : (user?.username || "Unknown Student"),
                 cbNumber: student?.cb_number || "N/A",
                 profilePicture: student?.profile_picture || null,
-                status: item.status || (type === 'Placement' ? 'Submitted' : 'Submitted'),
-                date: item.submittedDate || item.createdAt, // Fallback to createdAt
+                status: item.status || 'Submitted',
+                date: item.submittedDate || item.createdAt || item.updatedAt, // Fallback to createdAt/updatedAt
                 scheduledDate: item.scheduledDate || null,
                 meetLink: item.meetLink || null,
-                fileUrl: item.fileUrl,
+                fileUrl: type === 'Combined Logbook' ? student.combinedLogbookUrl : item.fileUrl,
                 month: item.month ? `${MONTH_NAMES[item.month - 1]} ${item.year}` : undefined,
                 logbookId: type === 'Logbook' ? item._id : undefined,
                 studentId: user?._id || user, // Include user ID for history fetching
                 // Additional fields for Placement Details
-                placement: type === 'Placement' ? {
+                placement: type === 'Placements' ? {
                     company_name: item.company_name,
                     position: item.position || item.placement_job_title,
                     start_date: item.start_date,
@@ -227,32 +209,12 @@ exports.getAllSubmissions = async (req, res) => {
             };
         };
 
-        // Deduplicate Logbooks: Show only the latest submission per student
-        const uniqueLogbooks = [];
-        const studentLogbookMap = new Map();
-
-        logbooks.forEach(lb => {
-            const sid = lb.studentId?._id?.toString();
-            if (!sid) return;
-
-            if (!studentLogbookMap.has(sid)) {
-                studentLogbookMap.set(sid, lb);
-            } else {
-                // Check if current lb is newer than stored lb
-                const stored = studentLogbookMap.get(sid);
-                if (lb.year > stored.year || (lb.year === stored.year && lb.month > stored.month)) {
-                    studentLogbookMap.set(sid, lb);
-                }
-            }
-        });
-
-        studentLogbookMap.forEach(lb => uniqueLogbooks.push(lb));
-
         const combined = [
-            ...uniqueLogbooks.map(l => mapSubmission(l, 'Logbook')),
-            ...latestMarksheets.map(m => mapSubmission(m, 'Marksheet')),
-            ...latestPresentations.map(p => mapSubmission(p, 'Exit Presentation')),
-            ...allPlacements.map(pl => mapSubmission(pl, 'Placements'))
+            ...logbooks.map(l => mapSubmission(l, 'Logbook')),
+            ...allMarksheets.map(m => mapSubmission(m, 'Marksheet')),
+            ...allPresentations.map(p => mapSubmission(p, 'Exit Presentation')),
+            ...allPlacements.map(pl => mapSubmission(pl, 'Placements')),
+            ...students.filter(s => s.combinedLogbookUrl).map(s => mapSubmission(s, 'Combined Logbook'))
         ];
 
         res.status(200).json(combined);
