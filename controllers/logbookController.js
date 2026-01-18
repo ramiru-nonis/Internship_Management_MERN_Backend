@@ -477,7 +477,7 @@ exports.downloadLogbookPDF = async (req, res) => {
                             type: 'authenticated',
                         });
 
-                        downloadUrl = logbook.signedPDFPath; // Revert to stored for now, rely on headers.
+                        // downloadUrl = logbook.signedPDFPath; // REMOVED: potentially caused 401 on private files
                     }
                 } catch (e) {
                     console.warn("Error parsing Cloudinary URL:", e);
