@@ -403,21 +403,14 @@ exports.getHistory = async (req, res) => {
 
 // Download Logbook PDF
 exports.downloadLogbookPDF = async (req, res) => {
-    console.log("[DEBUG] downloadLogbookPDF requested for ID:", req.params.id);
     try {
         const { generateLogbookPDF } = require('../utils/logbookTemplate');
 
         const logbook = await Logbook.findById(req.params.id);
-        if (!logbook) {
-            console.log("[DEBUG] Logbook not found in DB");
-            return res.status(404).json({ message: 'Logbook not found' });
-        }
+        if (!logbook) return res.status(404).json({ message: 'Logbook not found' });
 
         const studentData = await Student.findOne({ user: logbook.studentId });
-        if (!studentData) {
-            console.log("[DEBUG] Student profile not found for user ID:", logbook.studentId);
-            return res.status(404).json({ message: 'Student profile not found' });
-        }
+        if (!studentData) return res.status(404).json({ message: 'Student profile not found' });
 
         // If a signed PDF exists, serve it
         if (logbook.signedPDFPath) {
@@ -456,20 +449,17 @@ exports.downloadLogbookPDF = async (req, res) => {
                 }
             } else {
                 // Local File
-                // Use process.cwd() to resolve relative paths from the project root (Backend)
                 const fullPath = path.isAbsolute(logbook.signedPDFPath)
                     ? logbook.signedPDFPath
-                    : path.join(process.cwd(), logbook.signedPDFPath);
-
-                console.log(`[DEBUG] Resolved local PDF path: ${fullPath}`);
+                    : path.join(__dirname, '..', logbook.signedPDFPath);
 
                 if (fs.existsSync(fullPath)) {
                     res.setHeader('Content-Type', 'application/pdf');
                     res.setHeader('Content-Disposition', `inline; filename="Signed_Logbook_${studentData.cb_number || 'ST'}_Month_${logbook.month}.pdf"`);
                     return res.sendFile(fullPath);
                 } else {
-                    console.error(`[DEBUG] Local PDF file not found on disk at: ${fullPath}. Falling back to template generation.`);
-                    // Fallthrough to generateLogbookPDF logic below
+                    console.error(`[DEBUG] Local PDF file not found at: ${fullPath}`);
+                    return res.status(404).json({ message: "Signed logbook file not found on server." });
                 }
             }
         }
@@ -505,7 +495,6 @@ exports.uploadSignedLogbook = async (req, res) => {
         const filePath = req.file.path || req.file.secure_url;
         logbook.signedPDFPath = filePath;
         logbook.isIndustryApproved = true; // NEW: Auto-approve on PDF upload by mentor
-        logbook.status = 'Approved'; // NEW: Auto-approve status on upload
 
         // Add to audit log
         logbook.auditLog.push({

@@ -684,7 +684,11 @@ const saveFinalMarks = async (req, res) => {
 
         // NEW: Handle coordinator-uploaded marksheet
         if (req.file) {
-            marksheet.marks.industryMarksheetUrl = `/uploads/marksheet/${req.file.filename}`;
+            // Use existing path (Cloudinary) or construct local relative path
+            const filePath = (req.file.path && req.file.path.startsWith('http'))
+                ? req.file.path
+                : `/uploads/marksheet/${req.file.filename}`;
+            marksheet.marks.industryMarksheetUrl = filePath;
         }
 
         await marksheet.save();

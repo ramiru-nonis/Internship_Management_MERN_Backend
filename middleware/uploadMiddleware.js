@@ -19,6 +19,10 @@ const localStorage = multer.diskStorage({
             uploadPath += 'profile';
         } else if (file.fieldname === 'signed_logbook') {
             uploadPath += 'logbooks';
+        } else if (file.fieldname === 'marksheet' || file.fieldname === 'industryMarksheet') {
+            uploadPath += 'marksheet';
+        } else if (file.fieldname === 'presentation') {
+            uploadPath += 'presentation';
         }
         createDir(uploadPath);
         cb(null, uploadPath);
@@ -74,6 +78,16 @@ function checkFileType(file, cb) {
             return cb(null, true);
         } else {
             cb('Error: Signed logbook must be a PDF file!');
+        }
+    } else if (['marksheet', 'presentation', 'industryMarksheet'].includes(file.fieldname)) {
+        const filetypes = /pdf/;
+        const extname = filetypes.test(path.extname(file.originalname).toLowerCase());
+        const mimetype = filetypes.test(file.mimetype);
+
+        if (mimetype && extname) {
+            return cb(null, true);
+        } else {
+            cb(`Error: ${file.fieldname} must be a PDF file!`);
         }
     } else {
         cb('Error: Unknown field!');

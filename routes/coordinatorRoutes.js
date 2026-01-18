@@ -32,15 +32,8 @@ router.get('/applications', getAllApplications);
 router.get('/placements', getAllPlacementForms);
 
 // Final Marks
-const multer = require('multer');
-const path = require('path');
-const fs = require('fs');
-
-const storage = multer.diskStorage({
-    destination: (req, file, cb) => cb(null, 'uploads/marksheet/'),
-    filename: (req, file, cb) => cb(null, `industry-${Date.now()}${path.extname(file.originalname)}`)
-});
-const upload = multer({ storage });
+// Use centralized upload middleware for consistency (supports Cloudinary/Local based on env)
+const upload = require('../middleware/uploadMiddleware');
 
 router.get('/marks/candidates', getFinalMarksCandidates);
 router.post('/marks/save', upload.single('industryMarksheet'), saveFinalMarks);
