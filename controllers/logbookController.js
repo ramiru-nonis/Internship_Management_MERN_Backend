@@ -449,9 +449,13 @@ exports.downloadLogbookPDF = async (req, res) => {
                 }
             } else {
                 // Local File
+                // Use process.cwd() to resolve relative paths from the project root (Backend)
+                // This is more robust than assuming __dirname structure
                 const fullPath = path.isAbsolute(logbook.signedPDFPath)
                     ? logbook.signedPDFPath
-                    : path.join(__dirname, '..', logbook.signedPDFPath);
+                    : path.join(process.cwd(), logbook.signedPDFPath);
+
+                console.log(`[DEBUG] Resolved PDF path: ${fullPath}`);
 
                 if (fs.existsSync(fullPath)) {
                     res.setHeader('Content-Type', 'application/pdf');
@@ -495,6 +499,7 @@ exports.uploadSignedLogbook = async (req, res) => {
         const filePath = req.file.path || req.file.secure_url;
         logbook.signedPDFPath = filePath;
         logbook.isIndustryApproved = true; // NEW: Auto-approve on PDF upload by mentor
+        logbook.status = 'Approved'; // NEW: Auto-approve status on upload
 
         // Add to audit log
         logbook.auditLog.push({
