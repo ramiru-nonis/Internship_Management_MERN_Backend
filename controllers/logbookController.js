@@ -311,48 +311,6 @@ exports.handleMentorActionLink = async (req, res) => {
         await logbook.save();
         console.log("[DEBUG] Logbook saved with new status");
 
-        // NEW: Check if all logbooks are approved to generate combined PDF
-        if (status === 'Approved' && logbook.studentId) {
-            try {
-                const studentProfile = await Student.findOne({ user: logbook.studentId });
-                const placement = await PlacementForm.findOne({ student: studentProfile?._id });
-
-                if (studentProfile && placement) {
-                    const start = new Date(placement.start_date);
-                    const end = new Date(placement.end_date);
-                    let expectedMonths = (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth()) + 1;
-                    if (expectedMonths < 1) expectedMonths = 1;
-
-                    const allLogbooks = await Logbook.find({ studentId: logbook.studentId });
-                    const approvedLogbooks = allLogbooks.filter(lb => lb.status === 'Approved');
-
-                    if (approvedLogbooks.length >= expectedMonths) {
-                        console.log("[DEBUG] Logbook requirements met. Generating combined PDF...");
-                        // Sort by year and month
-                        approvedLogbooks.sort((a, b) => (a.year * 12 + a.month) - (b.year * 12 + b.month));
-
-                        const pdfPaths = approvedLogbooks
-                            .map(lb => lb.signedPDFPath)
-                            .filter(p => p && p !== "");
-
-                        if (pdfPaths.length > 0) {
-                            const fileName = `Combined_Logbook_${studentProfile.cb_number}_${Date.now()}.pdf`;
-                            const outputPath = path.join(__dirname, '..', 'uploads', 'combined_logbooks', fileName);
-
-                            const success = await mergePDFs(pdfPaths, outputPath);
-                            if (success) {
-                                studentProfile.combinedLogbookUrl = `/uploads/combined_logbooks/${fileName}`;
-                                await studentProfile.save();
-                                console.log("[DEBUG] Combined PDF generated and student profile updated.");
-                            }
-                        }
-                    }
-                }
-            } catch (mergeError) {
-                console.error("[DEBUG] Combined PDF generation failed:", mergeError);
-            }
-        }
-
         // Notify Student (In-App)
         if (logbook.studentId) {
             console.log(`[DEBUG] Notifying student ID: ${logbook.studentId}`);

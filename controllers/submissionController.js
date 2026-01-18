@@ -26,11 +26,11 @@ const isLogbookRequirementsMet = async (studentId) => {
     let expectedMonths = (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth()) + 1;
     if (expectedMonths < 1) expectedMonths = 1;
 
-    // 3. Count Approved Logbooks
+    // 3. Count Existing Logbooks (Draft, Pending, or Approved)
     const logbooks = await Logbook.find({ studentId });
-    const approvedCount = logbooks.filter(lb => lb.status === 'Approved').length;
+    const existingCount = logbooks.length;
 
-    return approvedCount >= expectedMonths;
+    return existingCount >= expectedMonths;
 };
 
 exports.uploadMarksheet = async (req, res) => {
@@ -42,7 +42,7 @@ exports.uploadMarksheet = async (req, res) => {
         // Enforce Logbook Completion
         const logbookComplete = await isLogbookRequirementsMet(studentId);
         if (!logbookComplete) {
-            return res.status(403).json({ message: "Final submission not allowed. You must have Approved Logbooks for your entire placement duration." });
+            return res.status(403).json({ message: "Final submission not allowed. You must have logbook entries for your entire placement duration." });
         }
 
         // Check attempt limit
@@ -84,7 +84,7 @@ exports.uploadPresentation = async (req, res) => {
         // Enforce Logbook Completion
         const logbookComplete = await isLogbookRequirementsMet(studentId);
         if (!logbookComplete) {
-            return res.status(403).json({ message: "Final submission not allowed. You must have Approved Logbooks for your entire placement duration." });
+            return res.status(403).json({ message: "Final submission not allowed. You must have logbook entries for your entire placement duration." });
         }
 
         // Check attempt limit
@@ -257,13 +257,25 @@ exports.notifySubmission = async (req, res) => {
         }
 
         const Student = require('../models/Student');
+        const Logbook = require('../models/Logbook');
         const student = await Student.findOne({ user: studentId });
+
+        // NEW: Automatically submit any DRAFT logbooks
+        await Logbook.updateMany(
+            { studentId, status: 'Draft' },
+            {
+                $set: {
+                    status: 'Pending',
+                    submittedDate: Date.now()
+                }
+            }
+        );
 
         const coordinator = await User.findOne({ role: 'coordinator' });
         if (coordinator && student) {
             await Notification.create({
                 recipient: coordinator._id,
-                message: `Student ${student.first_name} ${student.last_name} (${student.cb_number}) has completed final submission (Marksheet & Presentation).`,
+                message: `Student ${student.first_name} ${student.last_name} (${student.cb_number}) has completed final submission. All logbooks have been automatically submitted.`,
                 type: 'success'
             });
         }
@@ -330,7 +342,7 @@ exports.getStudentSubmissions = async (req, res) => {
             }
         }
 
-        const isLogbookComplete = approvedLogbooks >= expectedTotal && expectedTotal > 0;
+        const isLogbookComplete = totalLogbooks >= expectedTotal && expectedTotal > 0;
 
         res.status(200).json({
             marksheet: marksheet || null,
@@ -343,8 +355,7 @@ exports.getStudentSubmissions = async (req, res) => {
                 total: expectedTotal, // Send EXPECTED total to frontend
                 approved: approvedLogbooks,
                 actualTotal: totalLogbooks
-            },
-            combinedLogbookUrl: studentProfile?.combinedLogbookUrl || null
+            }
         });
     } catch (error) {
         res.status(500).json({ message: 'Error fetching student submissions', error });
