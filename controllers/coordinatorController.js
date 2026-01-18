@@ -587,7 +587,10 @@ const getFinalMarksCandidates = async (req, res) => {
 
         // Create Maps for O(1) access
         const presentationMap = new Set(presentations.map(p => p.studentId.toString()));
-        const industryMarksheetMap = new Set(industryMarksheets.map(m => m.studentId.toString()));
+        const industryMarksheetMap = {};
+        industryMarksheets.forEach(m => {
+            industryMarksheetMap[m.studentId.toString()] = m;
+        });
         const academicMarksheetMap = {};
         academicMarksheets.forEach(m => {
             academicMarksheetMap[m.studentId.toString()] = m;
@@ -600,11 +603,11 @@ const getFinalMarksCandidates = async (req, res) => {
             const sid = student.user._id.toString();
 
             const hasPresentation = presentationMap.has(sid);
-            const hasIndustryMarksheet = industryMarksheetMap.has(sid);
+            const industryMarksheet = industryMarksheetMap[sid];
             const isCompletedStatus = student.status === 'Completed';
 
             // Condition: Must have submitted both OR be marked as Completed
-            if ((hasPresentation && hasIndustryMarksheet) || isCompletedStatus) {
+            if ((hasPresentation && industryMarksheet) || isCompletedStatus) {
                 const existingMarks = academicMarksheetMap[sid];
 
                 // Find mentor details if student has an assigned mentor
@@ -616,7 +619,8 @@ const getFinalMarksCandidates = async (req, res) => {
                     cbNumber: student.cb_number,
                     submissionStatus: isCompletedStatus ? 'Completed' : 'Pending Review',
                     hasPresentation,
-                    hasIndustryMarksheet,
+                    hasIndustryMarksheet: !!industryMarksheet,
+                    industryMarksheetUrl: industryMarksheet?.fileUrl || null,
                     marksStatus: existingMarks ? (existingMarks.isFinalized ? 'Finalized' : 'Graded') : 'Pending',
                     marks: existingMarks ? existingMarks.marks : null,
                     comments: existingMarks ? existingMarks.comments : null,
@@ -675,10 +679,20 @@ const saveFinalMarks = async (req, res) => {
         marksheet.comments.finalComments = finalComments;
         marksheet.isFinalized = true;
 
-        // Optionally update the coordinator ID who finalized it
-        // marksheet.coordinatorId = req.user._id; 
+        // NEW: Handle coordinator-uploaded marksheet
+        if (req.file) {
+            marksheet.marks.industryMarksheetUrl = `/uploads/marksheets/${req.file.filename}`;
+        }
 
         await marksheet.save();
+
+        // Ensure student status is 'Completed'
+        const Student = require('../models/Student');
+        const student = await Student.findOne({ user: studentId });
+        if (student && student.status !== 'Completed') {
+            student.status = 'Completed';
+            await student.save();
+        }
 
         res.json({ message: "Final marks submitted successfully.", marksheet });
 

@@ -270,12 +270,11 @@ exports.notifySubmission = async (req, res) => {
         const Marksheet = require('../models/Marksheet');
         const Presentation = require('../models/Presentation');
 
-        // Verify that both submissions exist (check for at least one of each)
-        const marksheetCount = await Marksheet.countDocuments({ studentId });
+        // Verify that presentation exists (marksheet is now optional)
         const presentationCount = await Presentation.countDocuments({ studentId });
 
-        if (marksheetCount === 0 || presentationCount === 0) {
-            return res.status(400).json({ message: 'Both marksheet and presentation are required to complete the internship.' });
+        if (presentationCount === 0) {
+            return res.status(400).json({ message: 'Final presentation is required to complete the internship.' });
         }
 
         const Student = require('../models/Student');

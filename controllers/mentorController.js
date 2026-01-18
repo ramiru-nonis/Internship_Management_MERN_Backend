@@ -177,23 +177,32 @@ const getAssignedStudentsWithMarksheet = async (req, res) => {
 
         const Marksheet = require('../models/Marksheet');
 
-        // Get all ACADEMIC marksheets for these students
+        // Get ALL marksheets for these students to differentiate between Academic and Industry
         const studentUserIds = students.map(s => s.user?._id);
-        const marksheets = await Marksheet.find({
-            studentId: { $in: studentUserIds },
-            mentorId: { $exists: true }
+        const allMarksheets = await Marksheet.find({
+            studentId: { $in: studentUserIds }
         });
 
-        const marksheetMap = {};
-        marksheets.forEach(m => {
-            marksheetMap[m.studentId.toString()] = m;
+        const academicMarksheetMap = {};
+        const industryMarksheetMap = {};
+
+        allMarksheets.forEach(m => {
+            if (m.mentorId) {
+                academicMarksheetMap[m.studentId.toString()] = m;
+            } else {
+                industryMarksheetMap[m.studentId.toString()] = m;
+            }
         });
 
-        const studentsWithStatus = students.map(s => ({
-            ...s.toObject(),
-            marksheet: marksheetMap[s.user?._id?.toString()] || null,
-            hasMarksheet: !!marksheetMap[s.user?._id?.toString()]
-        }));
+        const studentsWithStatus = students.map(s => {
+            const sid = s.user?._id?.toString();
+            return {
+                ...s.toObject(),
+                marksheet: academicMarksheetMap[sid] || null, // Academic Marksheet
+                industryMarksheet: industryMarksheetMap[sid] || null, // Industry Marksheet
+                isFinalized: academicMarksheetMap[sid]?.isFinalized || false
+            };
+        });
 
         res.json(studentsWithStatus);
     } catch (error) {

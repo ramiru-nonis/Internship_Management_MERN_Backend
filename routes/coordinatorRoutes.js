@@ -32,8 +32,16 @@ router.get('/applications', getAllApplications);
 router.get('/placements', getAllPlacementForms);
 
 // Final Marks
+const multer = require('multer');
+const path = require('path');
+const storage = multer.diskStorage({
+    destination: (req, file, cb) => cb(null, 'uploads/marksheets/'),
+    filename: (req, file, cb) => cb(null, `industry-${Date.now()}${path.extname(file.originalname)}`)
+});
+const upload = multer({ storage });
+
 router.get('/marks/candidates', getFinalMarksCandidates);
-router.post('/marks/save', saveFinalMarks);
+router.post('/marks/save', upload.single('industryMarksheet'), saveFinalMarks);
 
 // Mentor Management
 router.post('/mentors', protect, coordinator, createAcademicMentor);

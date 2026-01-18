@@ -25,7 +25,8 @@ const marksheetSchema = new mongoose.Schema({
         presentation: { type: Number, min: 0, max: 20 },
         total: { type: Number, max: 60 },
         industryMarks: { type: Number, min: 0, max: 40 },
-        finalTotal: { type: Number, min: 0, max: 100 }
+        finalTotal: { type: Number, min: 0, max: 100 },
+        industryMarksheetUrl: { type: String }
     },
     isFinalized: {
         type: Boolean,
