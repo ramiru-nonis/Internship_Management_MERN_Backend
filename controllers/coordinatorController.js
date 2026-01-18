@@ -620,7 +620,7 @@ const getFinalMarksCandidates = async (req, res) => {
                     submissionStatus: isCompletedStatus ? 'Completed' : 'Pending Review',
                     hasPresentation,
                     hasIndustryMarksheet: !!industryMarksheet,
-                    industryMarksheetUrl: industryMarksheet?.fileUrl || null,
+                    industryMarksheetUrl: (existingMarks?.marks?.industryMarksheetUrl) || (industryMarksheet?.fileUrl) || null,
                     marksStatus: existingMarks ? (existingMarks.isFinalized ? 'Finalized' : 'Graded') : 'Pending',
                     marks: existingMarks ? existingMarks.marks : null,
                     comments: existingMarks ? existingMarks.comments : null,
