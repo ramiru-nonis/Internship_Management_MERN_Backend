@@ -312,12 +312,23 @@ exports.getStudentSubmissions = async (req, res) => {
         const PlacementForm = require('../models/PlacementForm');
         const Student = require('../models/Student');
 
-        // Fetch LATEST Marksheet (Student/Industry only)
+        // Fetch LATEST Marksheet (Student upload - only for file view/resubmit)
         const marksheet = await Marksheet.findOne({
             studentId,
             mentorId: { $exists: false }
         }).sort({ createdAt: -1 });
-        const marksheetCount = await Marksheet.countDocuments({ studentId });
+
+        // Fetch Official FINALIZED Marksheet (submitted by Mentor/Coordinator)
+        const finalizedMarksheet = await Marksheet.findOne({
+            studentId,
+            mentorId: { $exists: true },
+            isFinalized: true
+        }).sort({ updatedAt: -1 });
+
+        const marksheetCount = await Marksheet.countDocuments({
+            studentId,
+            mentorId: { $exists: false }
+        });
 
         // Fetch LATEST Presentation
         const presentation = await Presentation.findOne({ studentId }).sort({ createdAt: -1 });
@@ -345,6 +356,7 @@ exports.getStudentSubmissions = async (req, res) => {
 
         res.status(200).json({
             marksheet: marksheet || null,
+            finalizedMarksheet: finalizedMarksheet || null,
             marksheetCount: marksheetCount,
             presentation: presentation || null,
             presentationCount: presentationCount,
