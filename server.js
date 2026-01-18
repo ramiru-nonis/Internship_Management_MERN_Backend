@@ -27,7 +27,8 @@ app.use(express.urlencoded({ extended: true }));
 
 // Static folder for uploads
 const fs = require('fs');
-const uploadDir = path.join(__dirname, 'uploads');
+// Use process.cwd() to be safe across different environments/run methods
+const uploadDir = path.join(process.cwd(), 'uploads');
 const cvDir = path.join(uploadDir, 'cv');
 const profileDir = path.join(uploadDir, 'profile');
 const marksheetDir = path.join(uploadDir, 'marksheet');
