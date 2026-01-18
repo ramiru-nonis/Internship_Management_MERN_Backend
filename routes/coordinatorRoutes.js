@@ -34,8 +34,10 @@ router.get('/placements', getAllPlacementForms);
 // Final Marks
 const multer = require('multer');
 const path = require('path');
+const fs = require('fs');
+
 const storage = multer.diskStorage({
-    destination: (req, file, cb) => cb(null, 'uploads/marksheets/'),
+    destination: (req, file, cb) => cb(null, 'uploads/marksheet/'),
     filename: (req, file, cb) => cb(null, `industry-${Date.now()}${path.extname(file.originalname)}`)
 });
 const upload = multer({ storage });

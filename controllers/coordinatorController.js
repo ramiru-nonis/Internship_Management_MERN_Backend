@@ -674,6 +674,9 @@ const saveFinalMarks = async (req, res) => {
             (marksheet.marks.presentation || 0)
         );
 
+        if (!marksheet.marks) marksheet.marks = {};
+        if (!marksheet.comments) marksheet.comments = {};
+
         marksheet.marks.industryMarks = numIndustryMarks;
         marksheet.marks.finalTotal = amTotal + numIndustryMarks;
         marksheet.comments.finalComments = finalComments;
@@ -681,7 +684,7 @@ const saveFinalMarks = async (req, res) => {
 
         // NEW: Handle coordinator-uploaded marksheet
         if (req.file) {
-            marksheet.marks.industryMarksheetUrl = `/uploads/marksheets/${req.file.filename}`;
+            marksheet.marks.industryMarksheetUrl = `/uploads/marksheet/${req.file.filename}`;
         }
 
         await marksheet.save();
