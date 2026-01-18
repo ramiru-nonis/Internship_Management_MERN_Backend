@@ -209,12 +209,29 @@ exports.getAllSubmissions = async (req, res) => {
             };
         };
 
+        // Deduplicate Logbooks: Show only one entry per student for the "Logbook" filter
+        const uniqueLogbooks = [];
+        const seenLogbookStudents = new Set();
+
+        // Sort logbooks by date descending to get the most recent one first for each student
+        const sortedLogbooks = [...logbooks].sort((a, b) => {
+            if (b.year !== a.year) return b.year - a.year;
+            return b.month - a.month;
+        });
+
+        for (const lb of sortedLogbooks) {
+            const sid = lb.studentId?._id?.toString();
+            if (sid && !seenLogbookStudents.has(sid)) {
+                uniqueLogbooks.push(lb);
+                seenLogbookStudents.add(sid);
+            }
+        }
+
         const combined = [
-            ...logbooks.map(l => mapSubmission(l, 'Logbook')),
+            ...uniqueLogbooks.map(l => mapSubmission(l, 'Logbook')),
             ...allMarksheets.map(m => mapSubmission(m, 'Marksheet')),
             ...allPresentations.map(p => mapSubmission(p, 'Exit Presentation')),
-            ...allPlacements.map(pl => mapSubmission(pl, 'Placements')),
-            ...students.filter(s => s.combinedLogbookUrl).map(s => mapSubmission(s, 'Combined Logbook'))
+            ...allPlacements.map(pl => mapSubmission(pl, 'Placements'))
         ];
 
         res.status(200).json(combined);
