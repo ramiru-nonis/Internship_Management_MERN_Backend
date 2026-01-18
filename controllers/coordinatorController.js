@@ -617,11 +617,12 @@ const getFinalMarksCandidates = async (req, res) => {
                     submissionStatus: isCompletedStatus ? 'Completed' : 'Pending Review',
                     hasPresentation,
                     hasIndustryMarksheet,
-                    marksStatus: existingMarks ? 'Graded' : 'Pending',
+                    marksStatus: existingMarks ? (existingMarks.isFinalized ? 'Finalized' : 'Graded') : 'Pending',
                     marks: existingMarks ? existingMarks.marks : null,
                     comments: existingMarks ? existingMarks.comments : null,
                     lastUpdated: existingMarks ? existingMarks.updatedAt : null,
-                    mentorName: mentor ? `${mentor.first_name} ${mentor.last_name}` : 'Not Assigned'
+                    mentorName: mentor ? `${mentor.first_name} ${mentor.last_name}` : 'Not Assigned',
+                    isFinalized: existingMarks ? existingMarks.isFinalized : false
                 });
             }
         }
@@ -639,43 +640,51 @@ const getFinalMarksCandidates = async (req, res) => {
 // @access  Private (Coordinator)
 const saveFinalMarks = async (req, res) => {
     try {
-        const { studentId, marks, comments } = req.body;
+        const { studentId, industryMarks, finalComments } = req.body;
         const Marksheet = require('../models/Marksheet');
 
         // Validation
-        if (!studentId || !marks) {
-            return res.status(400).json({ message: "Student ID and Marks are required." });
+        if (!studentId || industryMarks === undefined) {
+            return res.status(400).json({ message: "Student ID and Industry Marks are required." });
         }
 
-        // Check if Academic Marksheet already exists
-        // Assuming one final mark record per student.
+        const numIndustryMarks = Number(industryMarks);
+        if (isNaN(numIndustryMarks) || numIndustryMarks < 0 || numIndustryMarks > 40) {
+            return res.status(400).json({ message: "Industry Marks must be between 0 and 40." });
+        }
+
+        // Find existing Academic Mentor Marksheet
         let marksheet = await Marksheet.findOne({
             studentId,
             mentorId: { $exists: true }
         });
 
-        if (marksheet) {
-            // Update fields
-            marksheet.marks = marks;
-            marksheet.comments = comments;
-            marksheet.mentorId = req.user._id; // Update grader to current user
-            await marksheet.save();
-        } else {
-            // Create new
-            marksheet = await Marksheet.create({
-                studentId,
-                mentorId: req.user._id,
-                fileUrl: "N/A", // Optional but passing dummy to be safe if schema change didn't propagate (though it did)
-                marks,
-                comments
-            });
+        if (!marksheet) {
+            return res.status(404).json({ message: "Academic Mentor marks must be submitted before finalization." });
         }
 
-        res.json({ message: "Marks saved successfully.", marksheet });
+        // Calculate Final Total
+        const amTotal = marksheet.marks.total || (
+            (marksheet.marks.technical || 0) +
+            (marksheet.marks.softSkills || 0) +
+            (marksheet.marks.presentation || 0)
+        );
+
+        marksheet.marks.industryMarks = numIndustryMarks;
+        marksheet.marks.finalTotal = amTotal + numIndustryMarks;
+        marksheet.comments.finalComments = finalComments;
+        marksheet.isFinalized = true;
+
+        // Optionally update the coordinator ID who finalized it
+        // marksheet.coordinatorId = req.user._id; 
+
+        await marksheet.save();
+
+        res.json({ message: "Final marks submitted successfully.", marksheet });
 
     } catch (error) {
-        console.error("Error saving marks:", error);
-        res.status(500).json({ message: "Failed to save marks." });
+        console.error("Error saving final marks:", error);
+        res.status(500).json({ message: "Failed to save final marks." });
     }
 };
 

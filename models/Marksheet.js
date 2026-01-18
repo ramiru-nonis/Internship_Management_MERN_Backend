@@ -23,12 +23,19 @@ const marksheetSchema = new mongoose.Schema({
         technical: { type: Number, min: 0, max: 20 },
         softSkills: { type: Number, min: 0, max: 20 },
         presentation: { type: Number, min: 0, max: 20 },
-        total: { type: Number, max: 60 }
+        total: { type: Number, max: 60 },
+        industryMarks: { type: Number, min: 0, max: 40 },
+        finalTotal: { type: Number, min: 0, max: 100 }
+    },
+    isFinalized: {
+        type: Boolean,
+        default: false
     },
     comments: {
         technical: String,
         softSkills: String,
-        presentation: String
+        presentation: String,
+        finalComments: String
     }
 }, { timestamps: true });
 
