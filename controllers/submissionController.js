@@ -134,7 +134,9 @@ exports.getAllSubmissions = async (req, res) => {
 
         const PlacementForm = require('../models/PlacementForm');
 
-        const logbooks = await Logbook.find({ status: { $ne: 'Draft' } }).populate('studentId');
+        const logbooks = await Logbook.find({ status: { $ne: 'Draft' } })
+            .populate('studentId')
+            .sort({ submittedDate: -1, createdAt: -1 });
         // Fetch ALL submissions
         const allMarksheets = await Marksheet.find().populate('studentId').sort({ createdAt: -1 });
         const allPresentations = await Presentation.find().populate('studentId').sort({ createdAt: -1 });
@@ -170,9 +172,6 @@ exports.getAllSubmissions = async (req, res) => {
             if (type === 'Placements') {
                 student = item.student;
                 user = student?.user;
-            } else if (type === 'Combined Logbook') {
-                student = item;
-                user = student?.user;
             } else {
                 student = user ? studentMap[user._id.toString()] : null;
             }
@@ -187,7 +186,7 @@ exports.getAllSubmissions = async (req, res) => {
                 date: item.submittedDate || item.createdAt || item.updatedAt, // Fallback to createdAt/updatedAt
                 scheduledDate: item.scheduledDate || null,
                 meetLink: item.meetLink || null,
-                fileUrl: type === 'Combined Logbook' ? student.combinedLogbookUrl : item.fileUrl,
+                fileUrl: item.fileUrl,
                 month: item.month ? `${MONTH_NAMES[item.month - 1]} ${item.year}` : undefined,
                 logbookId: type === 'Logbook' ? item._id : undefined,
                 studentId: user?._id || user, // Include user ID for history fetching
@@ -209,26 +208,8 @@ exports.getAllSubmissions = async (req, res) => {
             };
         };
 
-        // Deduplicate Logbooks: Show only one entry per student for the "Logbook" filter
-        const uniqueLogbooks = [];
-        const seenLogbookStudents = new Set();
-
-        // Sort logbooks by date descending to get the most recent one first for each student
-        const sortedLogbooks = [...logbooks].sort((a, b) => {
-            if (b.year !== a.year) return b.year - a.year;
-            return b.month - a.month;
-        });
-
-        for (const lb of sortedLogbooks) {
-            const sid = lb.studentId?._id?.toString();
-            if (sid && !seenLogbookStudents.has(sid)) {
-                uniqueLogbooks.push(lb);
-                seenLogbookStudents.add(sid);
-            }
-        }
-
         const combined = [
-            ...uniqueLogbooks.map(l => mapSubmission(l, 'Logbook')),
+            ...logbooks.map(l => mapSubmission(l, 'Logbook')),
             ...allMarksheets.map(m => mapSubmission(m, 'Marksheet')),
             ...allPresentations.map(p => mapSubmission(p, 'Exit Presentation')),
             ...allPlacements.map(pl => mapSubmission(pl, 'Placements'))
