@@ -467,7 +467,7 @@ exports.downloadLogbookPDF = async (req, res) => {
         // Fallback: Generate PDF from data if no signed PDF exists
         console.log("[DEBUG] No signed PDF found, generating from template...");
         res.setHeader('Content-Type', 'application/pdf');
-        res.setHeader('Content-Disposition', `attachment; filename=Logbook_${studentData.cb_number || 'ST'}_Month_${logbook.month}.pdf`);
+        res.setHeader('Content-Disposition', `inline; filename=Logbook_${studentData.cb_number || 'ST'}_Month_${logbook.month}.pdf`);
 
         generateLogbookPDF(logbook, studentData, res);
     } catch (error) {

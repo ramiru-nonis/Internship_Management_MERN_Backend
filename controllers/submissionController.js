@@ -430,3 +430,109 @@ exports.schedulePresentation = async (req, res) => {
     }
 };
 
+// Proxy/View Marksheet (Forces Inline)
+exports.viewMarksheet = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { type } = req.query; // 'academic' (default) or 'industry'
+        const Marksheet = require('../models/Marksheet');
+        const axios = require('axios');
+
+        const marksheet = await Marksheet.findById(id).populate('studentId');
+        if (!marksheet) return res.status(404).json({ message: "Marksheet not found" });
+
+        let fileUrl = marksheet.fileUrl;
+        let label = "Marksheet";
+
+        // Determine which file to serve
+        if (type === 'industry') {
+            fileUrl = marksheet.marks?.industryMarksheetUrl;
+            label = "Industry_Evaluation";
+            if (!fileUrl) return res.status(404).json({ message: "Industry marksheet not found" });
+        } else {
+            label = "Academic_Evaluation";
+        }
+
+        // 1. Handle Cloudinary URL
+        if (fileUrl.startsWith('http')) {
+            try {
+                const response = await axios({
+                    method: 'get',
+                    url: fileUrl,
+                    responseType: 'stream'
+                });
+
+                res.setHeader('Content-Type', 'application/pdf');
+                res.setHeader('Content-Disposition', `inline; filename="${label}_${id}.pdf"`);
+                response.data.pipe(res);
+            } catch (proxyError) {
+                console.error("Proxy error:", proxyError.message);
+                return res.redirect(fileUrl); // Fallback to direct link
+            }
+        }
+        // 2. Handle Local File
+        else {
+            const cwd = process.cwd();
+            // fileUrl might be "/uploads/marksheet/..."
+            const relativePath = fileUrl.startsWith('/') ? fileUrl.substring(1) : fileUrl;
+            const fullPath = path.join(cwd, relativePath);
+
+            if (fs.existsSync(fullPath)) {
+                res.setHeader('Content-Type', 'application/pdf');
+                res.setHeader('Content-Disposition', `inline; filename="${label}_${id}.pdf"`);
+                res.sendFile(fullPath);
+            } else {
+                return res.status(404).json({ message: "File not found on server" });
+            }
+        }
+    } catch (error) {
+        console.error("Error serving marksheet:", error);
+        res.status(500).json({ message: "Error serving file" });
+    }
+};
+
+// Proxy/View Presentation (Forces Inline)
+exports.viewPresentation = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const Presentation = require('../models/Presentation');
+        const axios = require('axios');
+
+        const presentation = await Presentation.findById(id);
+        if (!presentation) return res.status(404).json({ message: "Presentation not found" });
+
+        const fileUrl = presentation.fileUrl;
+
+        if (fileUrl.startsWith('http')) {
+            try {
+                const response = await axios({
+                    method: 'get',
+                    url: fileUrl,
+                    responseType: 'stream'
+                });
+                res.setHeader('Content-Type', 'application/pdf');
+                res.setHeader('Content-Disposition', `inline; filename="Presentation_${id}.pdf"`);
+                response.data.pipe(res);
+            } catch (proxyError) {
+                console.error("Proxy error:", proxyError.message);
+                return res.redirect(fileUrl);
+            }
+        } else {
+            const cwd = process.cwd();
+            const relativePath = fileUrl.startsWith('/') ? fileUrl.substring(1) : fileUrl;
+            const fullPath = path.join(cwd, relativePath);
+
+            if (fs.existsSync(fullPath)) {
+                res.setHeader('Content-Type', 'application/pdf');
+                res.setHeader('Content-Disposition', `inline; filename="Presentation_${id}.pdf"`);
+                res.sendFile(fullPath);
+            } else {
+                return res.status(404).json({ message: "File not found on server" });
+            }
+        }
+    } catch (error) {
+        console.error("Error serving presentation:", error);
+        res.status(500).json({ message: "Error serving file" });
+    }
+};
+
