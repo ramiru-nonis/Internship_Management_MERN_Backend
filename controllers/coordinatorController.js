@@ -659,10 +659,8 @@ const saveFinalMarks = async (req, res) => {
             mentorId: { $exists: true }
         });
 
-        if (!marksheet || !marksheet.marks || marksheet.marks.total === undefined) {
-            return res.status(400).json({
-                message: "Academic Mentor marks must be submitted and saved before finalization."
-            });
+        if (!marksheet) {
+            return res.status(404).json({ message: "Academic Mentor marks must be submitted before finalization." });
         }
 
         // Calculate Final Total
