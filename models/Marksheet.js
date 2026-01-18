@@ -12,7 +12,7 @@ const marksheetSchema = new mongoose.Schema({
     },
     fileUrl: {
         type: String, // Relative path or URL
-        required: true
+        required: false
     },
     submittedDate: {
         type: Date,

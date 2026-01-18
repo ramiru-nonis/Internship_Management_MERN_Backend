@@ -13,6 +13,8 @@ const {
     deleteMentor,
     assignMentor,
     bulkAssignMentor,
+    saveFinalMarks,
+    getFinalMarksCandidates
 } = require('../controllers/coordinatorController');
 const { downloadCVs } = require('../controllers/studentController');
 const { protect, coordinator } = require('../middleware/authMiddleware');
@@ -28,6 +30,10 @@ router.post('/students/download-cvs', downloadCVs);
 router.get('/students/:id/profile', getStudentProfile);
 router.get('/applications', getAllApplications);
 router.get('/placements', getAllPlacementForms);
+
+// Final Marks
+router.get('/marks/candidates', getFinalMarksCandidates);
+router.post('/marks/save', saveFinalMarks);
 
 // Mentor Management
 router.post('/mentors', protect, coordinator, createAcademicMentor);

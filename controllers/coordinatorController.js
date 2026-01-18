@@ -553,6 +553,132 @@ const bulkAssignMentor = async (req, res) => {
     }
 };
 
+
+// @desc    Get candidates for final marks assignment
+// @route   GET /api/coordinator/marks-candidates
+// @access  Private (Coordinator)
+const getFinalMarksCandidates = async (req, res) => {
+    try {
+        const Student = require('../models/Student');
+        const Presentation = require('../models/Presentation');
+        const Marksheet = require('../models/Marksheet');
+
+        // 1. Fetch all students who have 'Completed' status OR have submitted both requirements
+        // Prioritize 'Completed' status as it's the official flag, but also check for raw submissions
+
+        // Fetch all students
+        const students = await Student.find()
+            .populate('user', 'email')
+            .populate('academic_mentor', 'first_name last_name')
+            .lean();
+
+        const studentIds = students.map(s => s.user?._id);
+
+        // Fetch Submissions for all students
+        const presentations = await Presentation.find({ studentId: { $in: studentIds } });
+        const industryMarksheets = await Marksheet.find({
+            studentId: { $in: studentIds },
+            mentorId: { $exists: false }
+        });
+        const academicMarksheets = await Marksheet.find({
+            studentId: { $in: studentIds },
+            mentorId: { $exists: true }
+        });
+
+        // Create Maps for O(1) access
+        const presentationMap = new Set(presentations.map(p => p.studentId.toString()));
+        const industryMarksheetMap = new Set(industryMarksheets.map(m => m.studentId.toString()));
+        const academicMarksheetMap = {};
+        academicMarksheets.forEach(m => {
+            academicMarksheetMap[m.studentId.toString()] = m;
+        });
+
+        const candidates = [];
+
+        for (const student of students) {
+            if (!student.user) continue;
+            const sid = student.user._id.toString();
+
+            const hasPresentation = presentationMap.has(sid);
+            const hasIndustryMarksheet = industryMarksheetMap.has(sid);
+            const isCompletedStatus = student.status === 'Completed';
+
+            // Condition: Must have submitted both OR be marked as Completed
+            if ((hasPresentation && hasIndustryMarksheet) || isCompletedStatus) {
+                const existingMarks = academicMarksheetMap[sid];
+
+                // Find mentor details if student has an assigned mentor
+                const mentor = student.academic_mentor;
+
+                candidates.push({
+                    studentId: sid,
+                    name: `${student.first_name} ${student.last_name}`,
+                    cbNumber: student.cb_number,
+                    submissionStatus: isCompletedStatus ? 'Completed' : 'Pending Review',
+                    hasPresentation,
+                    hasIndustryMarksheet,
+                    marksStatus: existingMarks ? 'Graded' : 'Pending',
+                    marks: existingMarks ? existingMarks.marks : null,
+                    comments: existingMarks ? existingMarks.comments : null,
+                    lastUpdated: existingMarks ? existingMarks.updatedAt : null,
+                    mentorName: mentor ? `${mentor.first_name} ${mentor.last_name}` : 'Not Assigned'
+                });
+            }
+        }
+
+        res.json(candidates);
+
+    } catch (error) {
+        console.error("Error fetching candidates:", error);
+        res.status(500).json({ message: "Failed to fetch candidates." });
+    }
+};
+
+// @desc    Save final marks for a student
+// @route   POST /api/coordinator/save-marks
+// @access  Private (Coordinator)
+const saveFinalMarks = async (req, res) => {
+    try {
+        const { studentId, marks, comments } = req.body;
+        const Marksheet = require('../models/Marksheet');
+
+        // Validation
+        if (!studentId || !marks) {
+            return res.status(400).json({ message: "Student ID and Marks are required." });
+        }
+
+        // Check if Academic Marksheet already exists
+        // Assuming one final mark record per student.
+        let marksheet = await Marksheet.findOne({
+            studentId,
+            mentorId: { $exists: true }
+        });
+
+        if (marksheet) {
+            // Update fields
+            marksheet.marks = marks;
+            marksheet.comments = comments;
+            marksheet.mentorId = req.user._id; // Update grader to current user
+            await marksheet.save();
+        } else {
+            // Create new
+            marksheet = await Marksheet.create({
+                studentId,
+                mentorId: req.user._id,
+                fileUrl: "N/A", // Optional but passing dummy to be safe if schema change didn't propagate (though it did)
+                marks,
+                comments
+            });
+        }
+
+        res.json({ message: "Marks saved successfully.", marksheet });
+
+    } catch (error) {
+        console.error("Error saving marks:", error);
+        res.status(500).json({ message: "Failed to save marks." });
+    }
+};
+
 module.exports = {
     getDashboardStats,
     getAllStudents,
@@ -566,4 +692,6 @@ module.exports = {
     deleteMentor,
     assignMentor,
     bulkAssignMentor,
+    getFinalMarksCandidates,
+    saveFinalMarks,
 };
