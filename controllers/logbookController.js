@@ -405,26 +405,37 @@ exports.getHistory = async (req, res) => {
 exports.downloadLogbookPDF = async (req, res) => {
     try {
         const { generateLogbookPDF } = require('../utils/logbookTemplate');
+        const jwt = require('jsonwebtoken');
 
         const logbook = await Logbook.findById(req.params.id);
         if (!logbook) return res.status(404).json({ message: 'Logbook not found' });
 
-        // Access Control: Only student owner or authorized roles can access signed logbooks
         const studentData = await Student.findOne({ user: logbook.studentId });
         if (!studentData) return res.status(404).json({ message: 'Student profile not found' });
 
-        const isOwner = req.user && req.user._id.toString() === logbook.studentId.toString();
-        const isAdminOrCoordinator = req.user && (req.user.role === 'admin' || req.user.role === 'coordinator');
-
         // If a signed PDF exists, serve it (restricted access)
         if (logbook.signedPDFPath) {
+            // Manual verification of token since route is now public to allow mentor access to template
+            let user = req.user;
+            if (!user && req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
+                try {
+                    const token = req.headers.authorization.split(' ')[1];
+                    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+                    user = await User.findById(decoded.id).select('-password');
+                } catch (err) {
+                    console.error("[DEBUG] Token verification failed for signed logbook access:", err.message);
+                }
+            }
+
+            if (!user) {
+                return res.status(401).json({ message: "Authentication required to access signed logbooks." });
+            }
+
+            const isOwner = user._id.toString() === logbook.studentId.toString();
+            const isAdminOrCoordinator = ['admin', 'coordinator'].includes(user.role);
+
             if (!isOwner && !isAdminOrCoordinator) {
-                // If the requester is not an owner or admin/coordinator, check if they are the mentor (using email/ID if we have it in session)
-                // However, usually mentors access via public link or we proxy for them.
-                // For now, let's allow access if it's the mentor (using simple email check if present in req.user or just allow via link if needed)
-                // BUT the prompt says "ensure proper access control so only the assigned student and authorized roles can access".
-                // I will strictly follow that.
-                return res.status(401).json({ message: "Not authorized to access this signed logbook." });
+                return res.status(403).json({ message: "Not authorized to access this signed logbook." });
             }
 
             console.log(`[DEBUG] Serving signed logbook from: ${logbook.signedPDFPath}`);
