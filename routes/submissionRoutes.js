@@ -52,7 +52,4 @@ router.get('/student/:studentId', submissionController.getStudentSubmissions);
 router.get('/marksheets/:id/view', submissionController.viewMarksheet);
 router.get('/presentations/:id/view', submissionController.viewPresentation);
 
-// Eligibility Check
-router.get('/eligibility/:studentId', submissionController.checkEligibility);
-
 module.exports = router;

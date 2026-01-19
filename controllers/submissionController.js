@@ -26,11 +26,13 @@ const isLogbookRequirementsMet = async (studentId) => {
     let expectedMonths = (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth()) + 1;
     if (expectedMonths < 1) expectedMonths = 1;
 
-    // 3. Count Existing Logbooks (Draft, Pending, or Approved)
-    const logbooks = await Logbook.find({ studentId });
-    const existingCount = logbooks.length;
+    // 3. Count Approved Logbooks Only
+    const approvedCount = await Logbook.countDocuments({
+        studentId,
+        status: 'Approved'
+    });
 
-    return existingCount >= expectedMonths;
+    return approvedCount >= expectedMonths;
 };
 
 exports.uploadMarksheet = async (req, res) => {
@@ -323,7 +325,7 @@ exports.getStudentSubmissions = async (req, res) => {
             }
         }
 
-        const isLogbookComplete = totalLogbooks >= expectedTotal && expectedTotal > 0;
+        const isLogbookComplete = approvedLogbooks >= expectedTotal && expectedTotal > 0;
 
         res.status(200).json({
             marksheet: marksheet || null,
@@ -533,54 +535,6 @@ exports.viewPresentation = async (req, res) => {
     } catch (error) {
         console.error("Error serving presentation:", error);
         res.status(500).json({ message: "Error serving file" });
-    }
-};
-
-// Check Eligibility for Final Submission
-exports.checkEligibility = async (req, res) => {
-    try {
-        const { studentId } = req.params;
-        const PlacementForm = require('../models/PlacementForm');
-        const Logbook = require('../models/Logbook');
-
-        // 1. Get Placement Data
-        const placement = await PlacementForm.findOne({ student: studentId });
-        if (!placement) {
-            return res.status(400).json({ eligible: false, message: "Placement details not found. Please complete your placement form first." });
-        }
-
-        const { start_date, end_date } = placement;
-        if (!start_date || !end_date) {
-            return res.status(400).json({ eligible: false, message: "Internship dates are missing in your placement record." });
-        }
-
-        // 2. Calculate Total Required Months
-        const start = new Date(start_date);
-        const end = new Date(end_date);
-        // Calculate months difference inclusive
-        const totalMonths = (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth()) + 1;
-
-        // 3. Count Approved Logbooks
-        // We assume 'studentId' in Logbook refers to the User/Student ID passed in params.
-        // NOTE: Logbook model uses 'User' ref but field is 'studentId'. Verify if matches param.
-        const approvedCount = await Logbook.countDocuments({
-            studentId: studentId,
-            status: 'Approved'
-        });
-
-        // 4. Validate
-        if (approvedCount >= totalMonths) {
-            return res.json({ eligible: true });
-        } else {
-            return res.json({
-                eligible: false,
-                message: `You must have all monthly logbooks approved to access Final Submission. (Approved: ${approvedCount} / Required: ${totalMonths})`
-            });
-        }
-
-    } catch (error) {
-        console.error("Eligibility check failed:", error);
-        res.status(500).json({ eligible: false, message: "Server error checking eligibility." });
     }
 };
 
