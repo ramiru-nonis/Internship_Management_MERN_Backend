@@ -50,6 +50,10 @@ const submitPlacementForm = async (req, res) => {
             description,
         } = req.body;
 
+        if (new Date(end_date) < new Date(start_date)) {
+            return res.status(400).json({ message: 'End date cannot be before start date' });
+        }
+
         const placementForm = new PlacementForm({
             student: student._id,
             full_name,
