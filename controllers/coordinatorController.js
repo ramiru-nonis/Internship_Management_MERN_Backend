@@ -209,7 +209,8 @@ const getAllStudents = async (req, res) => {
         // Adjust logic: Fetch them, then filter in memory if needed.
 
         const fetchOrphans = (!req.query.degree || req.query.degree === 'all') &&
-            (!status || status === 'all' || status.includes('Incomplete'));
+            (!status || status === 'all' || status.includes('Incomplete')) &&
+            !mentor;
 
         if (fetchOrphans) {
             let userQuery = { role: 'student' }; // Only fetch students
