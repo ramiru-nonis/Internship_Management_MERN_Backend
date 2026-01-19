@@ -51,5 +51,6 @@ router.get('/student/:studentId', submissionController.getStudentSubmissions);
 // Proxy View Routes (Force Inline)
 router.get('/marksheets/:id/view', submissionController.viewMarksheet);
 router.get('/presentations/:id/view', submissionController.viewPresentation);
+router.get('/cv/:studentId/view', submissionController.viewCV);
 
 module.exports = router;
