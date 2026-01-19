@@ -354,6 +354,10 @@ exports.schedulePresentation = async (req, res) => {
             return res.status(400).json({ message: "Scheduled date is required." });
         }
 
+        if (new Date(scheduledDate) < new Date()) {
+            return res.status(400).json({ message: "Scheduled date must be in the future." });
+        }
+
         const Presentation = require('../models/Presentation');
         const Notification = require('../models/Notification');
         const Student = require('../models/Student');
