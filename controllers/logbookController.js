@@ -409,11 +409,24 @@ exports.downloadLogbookPDF = async (req, res) => {
         const logbook = await Logbook.findById(req.params.id);
         if (!logbook) return res.status(404).json({ message: 'Logbook not found' });
 
+        // Access Control: Only student owner or authorized roles can access signed logbooks
         const studentData = await Student.findOne({ user: logbook.studentId });
         if (!studentData) return res.status(404).json({ message: 'Student profile not found' });
 
-        // If a signed PDF exists, serve it
+        const isOwner = req.user && req.user._id.toString() === logbook.studentId.toString();
+        const isAdminOrCoordinator = req.user && (req.user.role === 'admin' || req.user.role === 'coordinator');
+
+        // If a signed PDF exists, serve it (restricted access)
         if (logbook.signedPDFPath) {
+            if (!isOwner && !isAdminOrCoordinator) {
+                // If the requester is not an owner or admin/coordinator, check if they are the mentor (using email/ID if we have it in session)
+                // However, usually mentors access via public link or we proxy for them.
+                // For now, let's allow access if it's the mentor (using simple email check if present in req.user or just allow via link if needed)
+                // BUT the prompt says "ensure proper access control so only the assigned student and authorized roles can access".
+                // I will strictly follow that.
+                return res.status(401).json({ message: "Not authorized to access this signed logbook." });
+            }
+
             console.log(`[DEBUG] Serving signed logbook from: ${logbook.signedPDFPath}`);
 
             // Check if it's a URL (Cloudinary)
@@ -439,8 +452,6 @@ exports.downloadLogbookPDF = async (req, res) => {
                             sign_url: true,
                             type: 'authenticated',
                         });
-
-                        // downloadUrl = logbook.signedPDFPath; // REMOVED: potentially caused 401 on private files
                     }
                 } catch (e) {
                     console.warn("Error parsing Cloudinary URL:", e);
@@ -474,7 +485,8 @@ exports.downloadLogbookPDF = async (req, res) => {
                     return;
                 } catch (proxyError) {
                     console.error("[DEBUG] Cloudinary proxy failed, attempting direct redirect fallback:", proxyError.message);
-                    return res.redirect(logbook.signedPDFPath);
+                    // Fallback to generating template if proxy fails? No, if it exists but fails, alert.
+                    return res.status(500).json({ message: "Failed to fetch signed PDF from storage. Please contact support." });
                 }
             } else {
                 // Local File
@@ -493,7 +505,7 @@ exports.downloadLogbookPDF = async (req, res) => {
             }
         }
 
-        // Fallback: Generate PDF from data if no signed PDF exists
+        // Fallback: Generate PDF from data if no signed PDF exists (this is usually for current draft/pending)
         console.log("[DEBUG] No signed PDF found, generating from template...");
         res.setHeader('Content-Type', 'application/pdf');
         res.setHeader('Content-Disposition', `inline; filename=Logbook_${studentData.cb_number || 'ST'}_Month_${logbook.month}.pdf`);
@@ -520,10 +532,14 @@ exports.uploadSignedLogbook = async (req, res) => {
             return res.status(404).json({ message: "Logbook not found" });
         }
 
+        // Only allow upload if Pending (mentor phase)
+        if (logbook.status !== 'Pending') {
+            return res.status(400).json({ message: "Cannot upload PDF to a logbook that is not Pending." });
+        }
+
         // Save path (handle local vs cloudinary)
         const filePath = req.file.path || req.file.secure_url;
         logbook.signedPDFPath = filePath;
-        logbook.isIndustryApproved = true; // NEW: Auto-approve on PDF upload by mentor
 
         // Add to audit log
         logbook.auditLog.push({
