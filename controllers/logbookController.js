@@ -418,10 +418,39 @@ exports.downloadLogbookPDF = async (req, res) => {
 
             // Check if it's a URL (Cloudinary)
             if (logbook.signedPDFPath.startsWith('http')) {
+                console.log("[DEBUG] Proxying Cloudinary PDF:", logbook.signedPDFPath);
+
+                let downloadUrl = logbook.signedPDFPath;
+
+                // Try to generate a signed URL if we can extract public_id
+                try {
+                    const parts = logbook.signedPDFPath.split('/upload/');
+                    if (parts.length === 2) {
+                        const versionAndId = parts[1]; // v12356/folder/id.pdf
+                        const pathParts = versionAndId.split('/');
+                        if (pathParts[0].startsWith('v')) {
+                            pathParts.shift(); // remove version
+                        }
+                        const publicIdWithExt = pathParts.join('/');
+                        const cloudinary = require('../config/cloudinary').cloudinary;
+
+                        downloadUrl = cloudinary.url(publicIdWithExt, {
+                            resource_type: 'raw',
+                            sign_url: true,
+                            type: 'authenticated',
+                        });
+
+                        // downloadUrl = logbook.signedPDFPath; // REMOVED: potentially caused 401 on private files
+                    }
+                } catch (e) {
+                    console.warn("Error parsing Cloudinary URL:", e);
+                }
+
+                // Proxy the file from Cloudinary 
                 try {
                     const response = await axios({
                         method: 'get',
-                        url: logbook.signedPDFPath,
+                        url: downloadUrl, // Use signed URL
                         responseType: 'stream',
                         timeout: 20000,
                         headers: {
