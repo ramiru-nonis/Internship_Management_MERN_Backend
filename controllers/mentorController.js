@@ -103,6 +103,16 @@ const submitMarksheet = async (req, res) => {
         if (!marks || !comments) {
             return res.status(400).json({ message: 'Marks and comments are required' });
         }
+
+        // Validate that all mark fields are greater than 0
+        if (!marks.technical || marks.technical <= 0 ||
+            !marks.softSkills || marks.softSkills <= 0 ||
+            !marks.presentation || marks.presentation <= 0) {
+            return res.status(400).json({
+                message: 'All mark fields must be filled with values greater than 0'
+            });
+        }
+
         if (marks.total > 60) {
             return res.status(400).json({ message: 'Total marks cannot exceed 60' });
         }
