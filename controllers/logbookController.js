@@ -432,9 +432,9 @@ exports.downloadLogbookPDF = async (req, res) => {
             }
 
             const isOwner = user._id.toString() === logbook.studentId.toString();
-            const isAdminOrCoordinator = ['admin', 'coordinator'].includes(user.role);
+            const isAdminStaff = ['admin', 'coordinator', 'academic_mentor'].includes(user.role);
 
-            if (!isOwner && !isAdminOrCoordinator) {
+            if (!isOwner && !isAdminStaff) {
                 return res.status(403).json({ message: "Not authorized to access this signed logbook." });
             }
 
