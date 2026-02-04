@@ -472,36 +472,50 @@ exports.downloadLogbookPDF = async (req, res) => {
                 }
                 */
 
-                // Proxy the file from Cloudinary 
                 try {
+                    console.log(`[DEBUG] Proxying PDF from URL: ${downloadUrl}`);
                     const response = await axios({
                         method: 'get',
-                        url: downloadUrl, // Use signed URL
+                        url: downloadUrl,
                         responseType: 'stream',
                         timeout: 20000,
                         headers: {
-                            'Accept': 'application/pdf'
+                            'Accept': 'application/pdf, application/octet-stream' // Broader accept
                         }
                     });
 
+                    console.log(`[DEBUG] Cloudinary Response Status: ${response.status}`);
+                    console.log(`[DEBUG] Cloudinary Content-Type: ${response.headers['content-type']}`);
+
                     res.setHeader('Content-Type', 'application/pdf');
-                    const filename = `Signed_Logbook_${studentData.cb_number || 'ST'}_Month_${logbook.month}.pdf`;
-                    res.setHeader('Content-Disposition', `inline; filename="${filename}"`);
+                    // Ensure filename is safe
+                    const safeFilename = `Signed_Logbook_${studentData.cb_number || 'ST'}_Month_${logbook.month}.pdf`.replace(/[^a-zA-Z0-9._-]/g, '_');
+                    res.setHeader('Content-Disposition', `inline; filename="${safeFilename}"`);
 
                     response.data.pipe(res);
 
                     response.data.on('error', (err) => {
                         console.error("[DEBUG] Stream error during PDF proxy:", err);
-                        if (!res.headersSent) {
-                            res.status(500).json({ message: "Error streaming PDF" });
-                        }
+                        // Can't send JSON if headers sent, but log it
                     });
 
                     return;
                 } catch (proxyError) {
-                    console.error("[DEBUG] Cloudinary proxy failed, attempting direct redirect fallback:", proxyError.message);
-                    // Fallback to generating template if proxy fails? No, if it exists but fails, alert.
-                    return res.status(500).json({ message: "Failed to fetch signed PDF from storage. Please contact support." });
+                    const debugMsg = `[DEBUG] Proxy Failed. Status: ${proxyError.response?.status}, Msg: ${proxyError.message}`;
+                    console.error(debugMsg);
+
+                    // Log to file for visibility
+                    const fs = require('fs');
+                    const path = require('path');
+                    const debugPath = path.join(__dirname, '../debug_output.txt');
+                    try {
+                        fs.appendFileSync(debugPath, `\n${new Date().toISOString()} - ${debugMsg}\n`);
+                    } catch (e) { console.error("Failed to write to debug log"); }
+
+                    return res.status(502).json({
+                        message: "Failed to fetch signed PDF from storage.",
+                        details: proxyError.message
+                    });
                 }
             } else {
                 // Local File
