@@ -439,89 +439,97 @@ exports.downloadLogbookPDF = async (req, res) => {
             }
 
             console.log(`[DEBUG] Serving signed logbook from: ${logbook.signedPDFPath}`);
-
             // Check if it's a URL (Cloudinary)
             if (logbook.signedPDFPath.startsWith('http')) {
                 console.log("[DEBUG] Proxying Cloudinary PDF:", logbook.signedPDFPath);
 
+                // --- PROXY STRATEGY: Try Public URL -> Fallback to Signed URL ---
+
+                const fs = require('fs');
+                const path = require('path');
+                const debugPath = path.join(__dirname, '../debug_output.txt');
+                const logDebug = (msg) => {
+                    try {
+                        const timestamp = new Date().toISOString();
+                        fs.appendFileSync(debugPath, `${timestamp} - ${msg}\n`);
+                        console.log(msg);
+                    } catch (e) { console.error("Log failed", e); }
+                };
+
                 let downloadUrl = logbook.signedPDFPath;
+                let usedSignedUrl = false;
 
-                // Try to generate a signed URL if we can extract public_id
-                /* 
-                // COMMENTED OUT: This logic forces 'raw' and 'authenticated' which breaks if the file was uploaded as 'image' or 'public'.
-                // Since uploads are public by default (unless configured otherwise), we can just use the provided URL.
-                try {
-                    const parts = logbook.signedPDFPath.split('/upload/');
-                    if (parts.length === 2) {
-                        const versionAndId = parts[1]; // v12356/folder/id.pdf
-                        const pathParts = versionAndId.split('/');
-                        if (pathParts[0].startsWith('v')) {
-                            pathParts.shift(); // remove version
-                        }
-                        const publicIdWithExt = pathParts.join('/');
-                        const cloudinary = require('../config/cloudinary').cloudinary;
-
-                        downloadUrl = cloudinary.url(publicIdWithExt, {
-                            resource_type: 'raw',
-                            sign_url: true,
-                            // type: 'authenticated', // Removed to default to 'upload' (public) which matches default storage
+                const attemptProxy = async (url, isRetry = false) => {
+                    logDebug(`[Proxy] Attempting URL: ${url} (Retry: ${isRetry})`);
+                    try {
+                        const response = await axios({
+                            method: 'get',
+                            url: url,
+                            responseType: 'stream',
+                            timeout: 20000,
+                            headers: { 'Accept': 'application/pdf, application/octet-stream' }
                         });
+                        logDebug(`[Proxy] Success! Status: ${response.status}`);
+                        return response;
+                    } catch (err) {
+                        logDebug(`[Proxy] Failed. Status: ${err.response?.status}, Msg: ${err.message}`);
+                        throw err;
                     }
-                } catch (e) {
-                    console.warn("Error parsing Cloudinary URL:", e);
-                }
-                */
+                };
 
                 try {
-                    console.log(`[DEBUG] Proxying PDF from URL: ${downloadUrl}`);
-                    const response = await axios({
-                        method: 'get',
-                        url: downloadUrl,
-                        responseType: 'stream',
-                        timeout: 20000,
-                        headers: {
-                            'Accept': 'application/pdf, application/octet-stream' // Broader accept
-                        }
-                    });
-
-                    console.log(`[DEBUG] Cloudinary Response Status: ${response.status}`);
-                    console.log(`[DEBUG] Cloudinary Content-Type: ${response.headers['content-type']}`);
+                    // Attempt 1: Raw URL
+                    const response = await attemptProxy(downloadUrl);
 
                     res.setHeader('Content-Type', 'application/pdf');
-                    // Ensure filename is safe
                     const safeFilename = `Signed_Logbook_${studentData.cb_number || 'ST'}_Month_${logbook.month}.pdf`.replace(/[^a-zA-Z0-9._-]/g, '_');
                     res.setHeader('Content-Disposition', `inline; filename="${safeFilename}"`);
-
                     response.data.pipe(res);
-
-                    response.data.on('error', (err) => {
-                        console.error("[DEBUG] Stream error during PDF proxy:", err);
-                        // Can't send JSON if headers sent, but log it
-                    });
-
                     return;
-                } catch (proxyError) {
-                    const debugMsg = `[DEBUG] Proxy Failed. Status: ${proxyError.response?.status}, Msg: ${proxyError.message}`;
-                    console.error(debugMsg);
 
-                    // Log to file for visibility
-                    const fs = require('fs');
-                    const path = require('path');
-                    const debugPath = path.join(__dirname, '../debug_output.txt');
+                } catch (initialError) {
+                    // Attempt 2: Generate Signed URL (Fallback for Authenticated/Old files)
+                    logDebug("[Proxy] Attempt 1 failed. Generating signed URL...");
+
                     try {
-                        fs.appendFileSync(debugPath, `\n${new Date().toISOString()} - ${debugMsg}\n`);
-                    } catch (e) { console.error("Failed to write to debug log"); }
+                        let signedUrl = null;
+                        const parts = logbook.signedPDFPath.split('/upload/');
+                        if (parts.length === 2) {
+                            const versionAndId = parts[1]; // v12356/folder/id.pdf
+                            const pathParts = versionAndId.split('/');
+                            if (pathParts[0].startsWith('v')) pathParts.shift(); // remove version
+                            const publicIdWithExt = pathParts.join('/');
 
-                    return res.status(502).json({
-                        message: "Failed to fetch signed PDF from storage.",
-                        details: proxyError.message
-                    });
+                            const cloudinary = require('../config/cloudinary').cloudinary;
+                            signedUrl = cloudinary.url(publicIdWithExt, {
+                                resource_type: 'raw', // Assume raw if we are signing
+                                sign_url: true,
+                                type: 'authenticated'
+                            });
+                        }
+
+                        if (signedUrl) {
+                            const retryResponse = await attemptProxy(signedUrl, true);
+
+                            res.setHeader('Content-Type', 'application/pdf');
+                            const safeFilename = `Signed_Logbook_${studentData.cb_number || 'ST'}_Month_${logbook.month}.pdf`.replace(/[^a-zA-Z0-9._-]/g, '_');
+                            res.setHeader('Content-Disposition', `inline; filename="${safeFilename}"`);
+                            retryResponse.data.pipe(res);
+                            return;
+                        } else {
+                            throw new Error("Could not construct signed URL");
+                        }
+                    } catch (retryError) {
+                        logDebug(`[Proxy] Retry failed: ${retryError.message}`);
+                        return res.status(502).json({
+                            message: "Failed to fetch signed PDF. Access denied or file missing.",
+                            details: retryError.message
+                        });
+                    }
                 }
             } else {
                 // Local File
                 const fullPath = path.isAbsolute(logbook.signedPDFPath)
-                    ? logbook.signedPDFPath
-                    : path.join(__dirname, '..', logbook.signedPDFPath);
 
                 if (fs.existsSync(fullPath)) {
                     res.setHeader('Content-Type', 'application/pdf');
