@@ -447,6 +447,9 @@ exports.downloadLogbookPDF = async (req, res) => {
                 let downloadUrl = logbook.signedPDFPath;
 
                 // Try to generate a signed URL if we can extract public_id
+                /* 
+                // COMMENTED OUT: This logic forces 'raw' and 'authenticated' which breaks if the file was uploaded as 'image' or 'public'.
+                // Since uploads are public by default (unless configured otherwise), we can just use the provided URL.
                 try {
                     const parts = logbook.signedPDFPath.split('/upload/');
                     if (parts.length === 2) {
@@ -461,12 +464,13 @@ exports.downloadLogbookPDF = async (req, res) => {
                         downloadUrl = cloudinary.url(publicIdWithExt, {
                             resource_type: 'raw',
                             sign_url: true,
-                            type: 'authenticated',
+                            // type: 'authenticated', // Removed to default to 'upload' (public) which matches default storage
                         });
                     }
                 } catch (e) {
                     console.warn("Error parsing Cloudinary URL:", e);
                 }
+                */
 
                 // Proxy the file from Cloudinary 
                 try {
