@@ -542,11 +542,12 @@ exports.downloadLogbookPDF = async (req, res) => {
             }
         }
 
-        // Fallback: If no signed PDF exists, return 404 (Do NOT auto-generate)
-        console.log("[DEBUG] No signed PDF found for logbook:", req.params.id);
-        return res.status(404).json({ message: "No signed logbook available for this entry." });
+        // Fallback: Generate PDF from data if no signed PDF exists (this is usually for current draft/pending)
+        console.log("[DEBUG] No signed PDF found, generating from template...");
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `inline; filename=Logbook_${studentData.cb_number || 'ST'}_Month_${logbook.month}.pdf`);
 
-        // generateLogbookPDF(logbook, studentData, res);
+        generateLogbookPDF(logbook, studentData, res);
     } catch (error) {
         console.error("Error generating/fetching PDF:", error);
         if (!res.headersSent) {
