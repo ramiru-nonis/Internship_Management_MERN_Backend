@@ -441,99 +441,45 @@ exports.downloadLogbookPDF = async (req, res) => {
             console.log(`[DEBUG] Serving signed logbook from: ${logbook.signedPDFPath}`);
             // Check if it's a URL (Cloudinary)
             if (logbook.signedPDFPath.startsWith('http')) {
-                console.log("[DEBUG] Proxying Cloudinary PDF:", logbook.signedPDFPath);
+                console.log("[DEBUG] Redirecting to Cloudinary PDF:", logbook.signedPDFPath);
 
-                // --- PROXY STRATEGY: Try Public URL -> Fallback to Signed URL ---
-
-                const fs = require('fs');
-                const path = require('path');
-                const debugPath = path.join(__dirname, '../debug_output.txt');
-                const logDebug = (msg) => {
-                    try {
-                        const timestamp = new Date().toISOString();
-                        fs.appendFileSync(debugPath, `${timestamp} - ${msg}\n`);
-                        console.log(msg);
-                    } catch (e) { console.error("Log failed", e); }
-                };
-
-                // Ensure URL is encoded properly (spaces, etc.)
-                let downloadUrl = logbook.signedPDFPath;
-                try {
-                    const urlObj = new URL(downloadUrl);
-                    downloadUrl = urlObj.toString();
-                } catch (e) { /* ignore if not valid URL yet */ }
-
-                const attemptProxy = async (url, isRetry = false) => {
-                    logDebug(`[Proxy] Attempting URL: ${url} (Retry: ${isRetry})`);
-                    try {
-                        const response = await axios({
-                            method: 'get',
-                            url: url,
-                            responseType: 'stream',
-                            timeout: 25000,
-                            headers: {
-                                'Accept': 'application/pdf, application/octet-stream',
-                                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-                            }
-                        });
-                        logDebug(`[Proxy] Success! Status: ${response.status}`);
-                        return response;
-                    } catch (err) {
-                        logDebug(`[Proxy] Failed. Status: ${err.response?.status}, Msg: ${err.message}`);
-                        throw err;
-                    }
-                };
+                // --- REDIRECT STRATEGY: Generate Signed URL and Redirect ---
+                // This avoids 502 errors by offloading the download to Cloudinary directly.
 
                 try {
-                    // Attempt 1: Raw URL
-                    const response = await attemptProxy(downloadUrl);
+                    let downloadUrl = logbook.signedPDFPath;
 
-                    res.setHeader('Content-Type', 'application/pdf');
-                    const safeFilename = `Signed_Logbook_${studentData.cb_number || 'ST'}_Month_${logbook.month}.pdf`.replace(/[^a-zA-Z0-9._-]/g, '_');
-                    res.setHeader('Content-Disposition', `inline; filename="${safeFilename}"`);
-                    response.data.pipe(res);
-                    return;
+                    // Attempt to generate a signed URL if possible (for security/access)
+                    // If the stored path is already a full URL, we might need to extract public ID to re-sign it properly
+                    // OR if it's already a public URL, we can just redirect.
+                    // Given the 502 history, we'll try to generate a fresh signed URL to be safe/robust.
 
-                } catch (initialError) {
-                    // Attempt 2: Generate Signed URL (Fallback)
-                    logDebug("[Proxy] Attempt 1 failed. Generating signed URL...");
+                    const parts = logbook.signedPDFPath.split('/upload/');
+                    if (parts.length === 2) {
+                        const versionAndId = parts[1];
+                        const pathParts = versionAndId.split('/');
+                        if (pathParts[0].startsWith('v')) pathParts.shift(); // remove version
+                        const publicIdWithExt = pathParts.join('/');
 
-                    try {
-                        let signedUrl = null;
-                        const parts = logbook.signedPDFPath.split('/upload/');
-                        if (parts.length === 2) {
-                            const versionAndId = parts[1]; // v12356/folder/id.pdf
-                            const pathParts = versionAndId.split('/');
-                            if (pathParts[0].startsWith('v')) pathParts.shift(); // remove version
-                            const publicIdWithExt = pathParts.join('/');
+                        const cloudinary = require('../config/cloudinary').cloudinary;
 
-                            const cloudinary = require('../config/cloudinary').cloudinary;
-                            signedUrl = cloudinary.url(publicIdWithExt, {
-                                resource_type: 'raw', // Must match upload type
-                                sign_url: true,
-                                // type: 'authenticated' // REMOVED: Most uploads are public 'upload' type.
-                            });
-                        }
-
-                        if (signedUrl) {
-                            const retryResponse = await attemptProxy(signedUrl, true);
-
-                            res.setHeader('Content-Type', 'application/pdf');
-                            const safeFilename = `Signed_Logbook_${studentData.cb_number || 'ST'}_Month_${logbook.month}.pdf`.replace(/[^a-zA-Z0-9._-]/g, '_');
-                            res.setHeader('Content-Disposition', `inline; filename="${safeFilename}"`);
-                            retryResponse.data.pipe(res);
-                            return;
-                        } else {
-                            throw new Error("Could not construct signed URL (invalid path format)");
-                        }
-                    } catch (retryError) {
-                        logDebug(`[Proxy] Retry failed: ${retryError.message}`);
-                        return res.status(502).json({
-                            message: "Failed to fetch signed PDF. The file may be missing or inaccessible.",
-                            details: retryError.message,
-                            initial_error: initialError.message
+                        // Generate Signed URL - Valid for 1 hour
+                        // Note: We use 'raw' as resource_type because that's what we uploaded as.
+                        downloadUrl = cloudinary.url(publicIdWithExt, {
+                            resource_type: 'raw',
+                            sign_url: true,
+                            secure: true,
+                            expires_at: Math.floor(Date.now() / 1000) + 3600 // 1 hour
                         });
+                        console.log("[DEBUG] Generated signed redirect URL");
                     }
+
+                    // Perform Redirect
+                    return res.redirect(downloadUrl);
+
+                } catch (redirectError) {
+                    console.error("[DEBUG] Redirect generation failed, falling back to direct link", redirectError);
+                    return res.redirect(logbook.signedPDFPath);
                 }
             } else {
                 // Local File
