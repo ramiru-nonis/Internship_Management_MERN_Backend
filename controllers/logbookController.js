@@ -456,8 +456,12 @@ exports.downloadLogbookPDF = async (req, res) => {
                     } catch (e) { console.error("Log failed", e); }
                 };
 
+                // Ensure URL is encoded properly (spaces, etc.)
                 let downloadUrl = logbook.signedPDFPath;
-                let usedSignedUrl = false;
+                try {
+                    const urlObj = new URL(downloadUrl);
+                    downloadUrl = urlObj.toString();
+                } catch (e) { /* ignore if not valid URL yet */ }
 
                 const attemptProxy = async (url, isRetry = false) => {
                     logDebug(`[Proxy] Attempting URL: ${url} (Retry: ${isRetry})`);
@@ -466,8 +470,11 @@ exports.downloadLogbookPDF = async (req, res) => {
                             method: 'get',
                             url: url,
                             responseType: 'stream',
-                            timeout: 20000,
-                            headers: { 'Accept': 'application/pdf, application/octet-stream' }
+                            timeout: 25000,
+                            headers: {
+                                'Accept': 'application/pdf, application/octet-stream',
+                                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+                            }
                         });
                         logDebug(`[Proxy] Success! Status: ${response.status}`);
                         return response;
@@ -488,7 +495,7 @@ exports.downloadLogbookPDF = async (req, res) => {
                     return;
 
                 } catch (initialError) {
-                    // Attempt 2: Generate Signed URL (Fallback for Authenticated/Old files)
+                    // Attempt 2: Generate Signed URL (Fallback)
                     logDebug("[Proxy] Attempt 1 failed. Generating signed URL...");
 
                     try {
@@ -502,9 +509,9 @@ exports.downloadLogbookPDF = async (req, res) => {
 
                             const cloudinary = require('../config/cloudinary').cloudinary;
                             signedUrl = cloudinary.url(publicIdWithExt, {
-                                resource_type: 'raw', // Assume raw if we are signing
+                                resource_type: 'raw', // Must match upload type
                                 sign_url: true,
-                                type: 'authenticated'
+                                // type: 'authenticated' // REMOVED: Most uploads are public 'upload' type.
                             });
                         }
 
@@ -517,19 +524,22 @@ exports.downloadLogbookPDF = async (req, res) => {
                             retryResponse.data.pipe(res);
                             return;
                         } else {
-                            throw new Error("Could not construct signed URL");
+                            throw new Error("Could not construct signed URL (invalid path format)");
                         }
                     } catch (retryError) {
                         logDebug(`[Proxy] Retry failed: ${retryError.message}`);
                         return res.status(502).json({
-                            message: "Failed to fetch signed PDF. Access denied or file missing.",
-                            details: retryError.message
+                            message: "Failed to fetch signed PDF. The file may be missing or inaccessible.",
+                            details: retryError.message,
+                            initial_error: initialError.message
                         });
                     }
                 }
             } else {
                 // Local File
                 const fullPath = path.isAbsolute(logbook.signedPDFPath)
+                    ? logbook.signedPDFPath
+                    : path.join(__dirname, '..', logbook.signedPDFPath); // Fix relative path resolution
 
                 if (fs.existsSync(fullPath)) {
                     res.setHeader('Content-Type', 'application/pdf');
@@ -542,12 +552,11 @@ exports.downloadLogbookPDF = async (req, res) => {
             }
         }
 
-        // Fallback: Generate PDF from data if no signed PDF exists (this is usually for current draft/pending)
-        console.log("[DEBUG] No signed PDF found, generating from template...");
-        res.setHeader('Content-Type', 'application/pdf');
-        res.setHeader('Content-Disposition', `inline; filename=Logbook_${studentData.cb_number || 'ST'}_Month_${logbook.month}.pdf`);
+        // Fallback: If no signed PDF exists, return 404 (Do NOT auto-generate)
+        console.log("[DEBUG] No signed PDF found for logbook:", req.params.id);
+        return res.status(404).json({ message: "No signed logbook available for this entry." });
 
-        generateLogbookPDF(logbook, studentData, res);
+        // generateLogbookPDF(logbook, studentData, res);
     } catch (error) {
         console.error("Error generating/fetching PDF:", error);
         if (!res.headersSent) {
