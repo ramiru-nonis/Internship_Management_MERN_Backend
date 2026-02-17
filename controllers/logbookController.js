@@ -527,6 +527,64 @@ exports.downloadLogbookPDF = async (req, res) => {
     }
 };
 
+// Consolidated Logbook PDF (Merge all monthly signed PDFs)
+exports.getConsolidatedLogbook = async (req, res) => {
+    try {
+        const { studentId } = req.params;
+        const student = await User.findById(studentId);
+        if (!student) return res.status(404).json({ message: "Student not found" });
+
+        const studentProfile = await Student.findOne({ user: studentId });
+
+        // 1. Find all approved logbooks with signed PDFs
+        const logbooks = await Logbook.find({
+            studentId: studentId,
+            status: 'Approved',
+            signedPDFPath: { $exists: true, $ne: "" }
+        }).sort({ year: 1, month: 1 });
+
+        if (logbooks.length === 0) {
+            return res.status(404).json({ message: "No signed logbooks found to consolidate." });
+        }
+
+        // 2. Prepare paths for merging
+        const pdfPaths = logbooks.map(l => l.signedPDFPath);
+        console.log(`[DEBUG] Attempting to merge ${pdfPaths.length} PDFs for student: ${studentId}`);
+
+        // 3. Define temp output path
+        const tempDir = path.join(__dirname, '..', 'uploads', 'temp');
+        if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir, { recursive: true });
+
+        const fileName = `Consolidated_Logbook_${studentProfile?.cb_number || 'Student'}_${Date.now()}.pdf`;
+        const outputPath = path.join(tempDir, fileName);
+
+        // 4. Merge
+        const success = await mergePDFs(pdfPaths, outputPath);
+
+        if (!success) {
+            return res.status(500).json({ message: "Failed to merge logbook PDFs." });
+        }
+
+        // 5. Send file and cleanup
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `inline; filename="Consolidated_Logbook.pdf"`);
+
+        res.sendFile(outputPath, (err) => {
+            if (err) {
+                console.error("[DEBUG] Error sending consolidated PDF:", err);
+            }
+            // Cleanup temp file after sending
+            fs.unlink(outputPath, (unlinkErr) => {
+                if (unlinkErr) console.error("[DEBUG] Error deleting temp PDF:", unlinkErr);
+            });
+        });
+
+    } catch (error) {
+        console.error("Error consolidating logbooks:", error);
+        res.status(500).json({ message: "Error consolidating logbooks", error: error.message });
+    }
+};
+
 // Upload Signed Logbook
 exports.uploadSignedLogbook = async (req, res) => {
     try {

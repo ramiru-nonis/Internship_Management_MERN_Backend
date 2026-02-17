@@ -13,6 +13,7 @@ router.get('/:id/download', logbookController.downloadLogbookPDF);
 router.get('/history/:studentId', logbookController.getHistory);
 router.get('/action/:id/:status', logbookController.handleMentorActionLink);
 router.post('/verify/:id', logbookController.handleMentorActionLink);
+router.get('/consolidated/:studentId', logbookController.getConsolidatedLogbook);
 router.post('/upload-signed/:id', upload.single('signed_logbook'), logbookController.uploadSignedLogbook);
 
 module.exports = router;
