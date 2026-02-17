@@ -1,5 +1,6 @@
 const Logbook = require('../models/Logbook');
 const User = require('../models/User');
+const jwt = require('jsonwebtoken');
 const Notification = require('../models/Notification');
 const sendEmail = require('../utils/sendEmail');
 const Student = require('../models/Student');
@@ -413,8 +414,10 @@ exports.downloadLogbookPDF = async (req, res) => {
         const studentData = await Student.findOne({ user: logbook.studentId });
         if (!studentData) return res.status(404).json({ message: 'Student profile not found' });
 
-        // If a signed PDF exists, serve it (restricted access)
-        if (logbook.signedPDFPath) {
+        const { template } = req.query;
+
+        // If a signed PDF exists, serve it (restricted access) - UNLESS template is requested
+        if (logbook.signedPDFPath && template !== 'true') {
             // Manual verification of token since route is now public to allow mentor access to template
             let user = req.user;
             if (!user && req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
