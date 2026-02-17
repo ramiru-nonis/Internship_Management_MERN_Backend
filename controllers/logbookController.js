@@ -477,9 +477,24 @@ exports.downloadLogbookPDF = async (req, res) => {
                         console.log("[DEBUG] Generated signed redirect URL");
                     }
 
-                    // Perform Redirect
-                    return res.redirect(downloadUrl);
+                    // Perform Proxy Fetch to avoid CORS issues and header leakage to Cloudinary
+                    console.log("[DEBUG] Proxying Cloudinary PDF through backend...");
 
+                    try {
+                        const cloudinaryRes = await axios({
+                            method: 'get',
+                            url: downloadUrl,
+                            responseType: 'stream'
+                        });
+
+                        res.setHeader('Content-Type', 'application/pdf');
+                        res.setHeader('Content-Disposition', `inline; filename="Signed_Logbook_${logbook.month}_${logbook.year}.pdf"`);
+
+                        return cloudinaryRes.data.pipe(res);
+                    } catch (proxyError) {
+                        console.error("[DEBUG] Proxy fetch failed, falling back to redirect", proxyError.message);
+                        return res.redirect(logbook.signedPDFPath);
+                    }
                 } catch (redirectError) {
                     console.error("[DEBUG] Redirect generation failed, falling back to direct link", redirectError);
                     return res.redirect(logbook.signedPDFPath);
