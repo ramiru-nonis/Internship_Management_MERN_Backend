@@ -425,7 +425,57 @@ exports.schedulePresentation = async (req, res) => {
                 });
                 console.log(`✅ Presentation invitation sent to: ${studentUser.email}`);
             } catch (emailError) {
-                console.error("❌ Failed to send presentation invitation email:", emailError);
+                console.error("❌ Failed to send presentation invitation email to student:", emailError);
+            }
+        }
+
+        // NEW: Notify Academic Mentor (Email)
+        if (student && student.academic_mentor) {
+            const AcademicMentor = require('../models/AcademicMentor');
+            const mentor = await AcademicMentor.findById(student.academic_mentor);
+
+            if (mentor && mentor.email) {
+                const formattedDate = new Date(scheduledDate).toLocaleDateString('en-GB', {
+                    weekday: 'long',
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric',
+                });
+                const formattedTime = new Date(scheduledDate).toLocaleTimeString('en-GB', {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                });
+
+                const mentorEmailMessage = `
+                    <div style="font-family: Arial, sans-serif; padding: 20px; line-height: 1.6;">
+                        <h2 style="color: #4f46e5;">Academic Mentoring: Presentation Scheduled</h2>
+                        <p>Hello ${mentor.first_name},</p>
+                        <p>An exit presentation has been scheduled for your assigned student, <strong>${student.first_name} ${student.last_name}</strong>. Please find the details below:</p>
+                        
+                        <div style="background-color: #f3f4f6; padding: 15px; border-radius: 8px; margin: 20px 0;">
+                            <p><strong>Student:</strong> ${student.first_name} ${student.last_name} (${student.cb_number})</p>
+                            <p><strong>Date:</strong> ${formattedDate}</p>
+                            <p><strong>Time:</strong> ${formattedTime}</p>
+                            ${meetLink ? `<p><strong>Meeting Link:</strong> <a href="${meetLink}" style="color: #4f46e5; font-weight: bold;">Join Meeting</a></p>` : ''}
+                        </div>
+
+                        <p>Please join the session to evaluate the student's performance.</p>
+                        
+                        <p>Best regards,<br/>The Internship Coordination Team</p>
+                    </div>
+                `;
+
+                try {
+                    await sendEmail({
+                        email: mentor.email,
+                        subject: `Presentation Scheduled - ${student.first_name} ${student.last_name}`,
+                        message: mentorEmailMessage,
+                        isHtml: true
+                    });
+                    console.log(`✅ Presentation invitation sent to mentor: ${mentor.email}`);
+                } catch (emailError) {
+                    console.error("❌ Failed to send presentation invitation email to mentor:", emailError);
+                }
             }
         }
 
