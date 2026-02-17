@@ -483,14 +483,11 @@ exports.downloadLogbookPDF = async (req, res) => {
                         timeout: 10000 // 10s timeout
                     });
 
-                    // Pass along important headers from the source if they exist
-                    if (response.headers['content-type']) {
-                        res.setHeader('Content-Type', response.headers['content-type']);
-                    } else {
-                        res.setHeader('Content-Type', 'application/pdf');
-                    }
-
-                    res.setHeader('Content-Disposition', `inline; filename="Signed_Logbook_${logbook.month}_${logbook.year}.pdf"`);
+                    // STRICTLY enforce PDF type to ensure browser doesn't download it as octet-stream
+                    res.setHeader('Content-Type', 'application/pdf');
+                    // 'inline' without filename can sometimes be better for just viewing,
+                    // but we keep filename as optional metadata
+                    res.setHeader('Content-Disposition', 'inline');
 
                     return response.data.pipe(res);
                 } catch (proxyError) {
@@ -576,7 +573,7 @@ exports.getConsolidatedLogbook = async (req, res) => {
         // 5. Send file and cleanup
         console.log("[DEBUG] Merge successful, sending file:", outputPath);
         res.setHeader('Content-Type', 'application/pdf');
-        res.setHeader('Content-Disposition', `inline; filename="Consolidated_Logbook.pdf"`);
+        res.setHeader('Content-Disposition', 'inline');
 
         res.sendFile(outputPath, (err) => {
             if (err) {
