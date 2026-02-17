@@ -227,52 +227,96 @@ exports.getAllSubmissions = async (req, res) => {
 exports.notifySubmission = async (req, res) => {
     try {
         const { studentId } = req.body;
-        const User = require('../models/User'); // Lazy load or move to top
+        const User = require('../models/User');
         const Notification = require('../models/Notification');
         const Marksheet = require('../models/Marksheet');
         const Presentation = require('../models/Presentation');
+        const Student = require('../models/Student');
+        const Logbook = require('../models/Logbook');
+        const { mergePDFs } = require('../utils/pdfUtils');
+        const { cloudinary } = require('../config/cloudinary');
+        const path = require('path');
+        const fs = require('fs');
 
-        // Verify that presentation exists (marksheet is now optional)
+        // 1. Verify that presentation exists
         const presentationCount = await Presentation.countDocuments({ studentId });
-
         if (presentationCount === 0) {
             return res.status(400).json({ message: 'Final presentation is required to complete the internship.' });
         }
 
-        const Student = require('../models/Student');
-        const Logbook = require('../models/Logbook');
         const student = await Student.findOne({ user: studentId });
+        if (!student) return res.status(404).json({ message: 'Student not found' });
 
-        // NEW: Automatically submit any DRAFT logbooks
+        // 2. Automatically submit any DRAFT logbooks
         await Logbook.updateMany(
             { studentId, status: 'Draft' },
-            {
-                $set: {
-                    status: 'Pending',
-                    submittedDate: Date.now()
-                }
-            }
+            { $set: { status: 'Pending', submittedDate: Date.now() } }
         );
 
+        // 3. GENERATE CONSOLIDATED LOGBOOK PDF
+        console.log(`[DEBUG] Finalizing submission: Generating consolidated logbook for student ${studentId}`);
+        const approvedLogbooks = await Logbook.find({
+            studentId,
+            status: 'Approved',
+            signedPDFPath: { $exists: true, $ne: "" }
+        }).sort({ year: 1, month: 1 });
+
+        if (approvedLogbooks.length > 0) {
+            const pdfPaths = approvedLogbooks.map(lb => lb.signedPDFPath);
+            const tempDir = path.join(__dirname, '..', 'uploads', 'temp');
+            if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir, { recursive: true });
+
+            const tempFileName = `Final_Consolidated_${student.cb_number}_${Date.now()}.pdf`;
+            const tempPath = path.join(tempDir, tempFileName);
+
+            const mergeSuccess = await mergePDFs(pdfPaths, tempPath);
+            if (mergeSuccess) {
+                try {
+                    console.log("[DEBUG] Uploading consolidated logbook to Cloudinary...");
+                    const uploadResult = await cloudinary.uploader.upload(tempPath, {
+                        folder: 'mern-internship-portal/final-logbooks',
+                        resource_type: 'raw',
+                        public_id: `Final_Logbook_${student.cb_number}_${Date.now()}`
+                    });
+
+                    student.finalConsolidatedLogbookUrl = uploadResult.secure_url;
+                    console.log("[DEBUG] Consolidated logbook uploaded successfully:", uploadResult.secure_url);
+
+                    // Deleting the temporary local file
+                    fs.unlink(tempPath, (err) => {
+                        if (err) console.error("[DEBUG] Error deleting temp consolidated file:", err);
+                    });
+                } catch (uploadErr) {
+                    console.error("[DEBUG] Error uploading final logbook to Cloudinary:", uploadErr);
+                }
+            } else {
+                console.error("[DEBUG] Failed to merge logbooks during final submission notify.");
+            }
+        } else {
+            console.warn("[DEBUG] No approved logbooks found to consolidate during final notification.");
+        }
+
+        // 4. Notify Coordinator
         const coordinator = await User.findOne({ role: 'coordinator' });
-        if (coordinator && student) {
+        if (coordinator) {
             await Notification.create({
                 recipient: coordinator._id,
-                message: `Student ${student.first_name} ${student.last_name} (${student.cb_number}) has completed final submission. All logbooks have been automatically submitted.`,
+                message: `Student ${student.first_name} ${student.last_name} (${student.cb_number}) has completed final submission. Consolidated logbook has been generated.`,
                 type: 'success'
             });
         }
 
-        // Update Student Status to 'Completed'
-        if (student) {
-            student.status = 'Completed';
-            await student.save();
-        }
+        // 5. Update Student Status to 'Completed'
+        student.status = 'Completed';
+        await student.save();
 
-        res.status(200).json({ message: 'Coordinator notified and status updated to Completed.' });
+        res.status(200).json({
+            message: 'Coordinator notified, consolidated logbook generated, and status updated to Completed.',
+            finalLogbookUrl: student.finalConsolidatedLogbookUrl
+        });
     } catch (error) {
-        console.error(error);
-        res.status(500).json({ message: 'Error notifying coordinator', error });
+        console.error("[DEBUG] Error in notifySubmission:", error);
+        res.status(500).json({ message: 'Error notifying coordinator', error: error.message });
     }
 };
 

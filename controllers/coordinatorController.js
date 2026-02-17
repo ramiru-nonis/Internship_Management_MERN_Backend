@@ -445,7 +445,8 @@ const getStudentProfile = async (req, res) => {
                 logbooks: {
                     total: logbooks.length,
                     approved: logbooks.filter(lb => lb.status === 'Approved').length,
-                    currentLogbookId: latestLogbook ? latestLogbook._id : null
+                    currentLogbookId: latestLogbook ? latestLogbook._id : null,
+                    finalConsolidatedLogbookUrl: student.finalConsolidatedLogbookUrl || null
                 }
             }
         });

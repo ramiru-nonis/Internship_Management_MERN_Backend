@@ -59,6 +59,10 @@ const studentSchema = mongoose.Schema({
         ref: 'AcademicMentor',
         default: null,
     },
+    finalConsolidatedLogbookUrl: {
+        type: String, // Path to the final merged PDF
+        default: "",
+    },
 }, {
     timestamps: true,
 });
