@@ -5,6 +5,7 @@ const AcademicMentor = require('../models/AcademicMentor');
 const Marksheet = require('../models/Marksheet');
 const Student = require('../models/Student');
 const Application = require('../models/Application');
+const sendEmail = require('../utils/sendEmail');
 
 // @desc    Create Academic Mentor Account
 // @route   POST /api/coordinator/mentors
@@ -510,6 +511,32 @@ const assignMentor = async (req, res) => {
         }
 
         await student.save();
+
+        // Send email notification to mentor
+        if (mentorId) {
+            const mentor = await AcademicMentor.findById(mentorId);
+            if (mentor && mentor.email) {
+                try {
+                    await sendEmail({
+                        email: mentor.email,
+                        subject: 'New Student Assigned',
+                        message: `
+                            <h1>New Student Assigned</h1>
+                            <p>Hello ${mentor.first_name},</p>
+                            <p>A new student, <strong>${student.first_name} ${student.last_name}</strong>, has been assigned to you for academic mentoring.</p>
+                            <p>You can now view their logbooks and submit marks in your dashboard.</p>
+                            <br>
+                            <p>Best regards,<br>NextStep Internship Team</p>
+                        `,
+                        isHtml: true
+                    });
+                } catch (emailError) {
+                    console.error('Failed to send assignment email:', emailError);
+                    // We don't want to fail the whole request if email fails
+                }
+            }
+        }
+
         res.json({ message: 'Mentor assigned successfully', student });
     } catch (error) {
         res.status(500).json({ message: error.message });
@@ -536,14 +563,51 @@ const bulkAssignMentor = async (req, res) => {
             return res.status(404).json({ message: 'Mentor not found' });
         }
 
-        // Only assign to students with 'Completed' status
+        // Fetch students to get their names for the email
+        const assignedStudents = await Student.find({
+            _id: { $in: studentIds },
+            status: 'Completed'
+        });
+
+        // Only assign if there are eligible students
+        if (assignedStudents.length === 0) {
+            return res.status(400).json({ message: 'No eligible students (Completed status) found to assign.' });
+        }
+
         const result = await Student.updateMany(
             {
-                _id: { $in: studentIds },
-                status: 'Completed'
+                _id: { $in: assignedStudents.map(s => s._id) },
             },
             { $set: { academic_mentor: mentorId } }
         );
+
+        // Send bulk email notification
+        if (result.modifiedCount > 0 && mentor.email) {
+            try {
+                const studentList = assignedStudents
+                    .map(s => `<li>${s.first_name} ${s.last_name} (${s.cb_number})</li>`)
+                    .join('');
+
+                await sendEmail({
+                    email: mentor.email,
+                    subject: 'New Students Assigned',
+                    message: `
+                        <h1>New Students Assigned</h1>
+                        <p>Hello ${mentor.first_name},</p>
+                        <p>The following ${assignedStudents.length} students have been assigned to you for academic mentoring:</p>
+                        <ul>
+                            ${studentList}
+                        </ul>
+                        <p>You can now view their logbooks and submit marks in your dashboard.</p>
+                        <br>
+                        <p>Best regards,<br>NextStep Internship Team</p>
+                    `,
+                    isHtml: true
+                });
+            } catch (emailError) {
+                console.error('Failed to send bulk assignment email:', emailError);
+            }
+        }
 
         res.json({
             message: `Mentor assigned to ${result.modifiedCount} students successfully`,
