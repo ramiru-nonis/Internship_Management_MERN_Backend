@@ -431,72 +431,74 @@ exports.downloadLogbookPDF = async (req, res) => {
             }
 
             if (!user) {
+                console.error("[DEBUG] No user found for signed logbook access. Req.user:", req.user, "Headers:", req.headers.authorization ? "Present" : "Missing");
                 return res.status(401).json({ message: "Authentication required to access signed logbooks." });
             }
 
             const isOwner = user._id.toString() === logbook.studentId.toString();
             const isAdminStaff = ['admin', 'coordinator', 'academic_mentor'].includes(user.role);
 
+            console.log(`[DEBUG] access check - User: ${user._id}, Role: ${user.role}, isOwner: ${isOwner}, isAdminStaff: ${isAdminStaff}`);
+
             if (!isOwner && !isAdminStaff) {
+                console.error(`[DEBUG] Authorization failed for user ${user._id} on logbook ${logbook._id}`);
                 return res.status(403).json({ message: "Not authorized to access this signed logbook." });
             }
 
-            console.log(`[DEBUG] Serving signed logbook from: ${logbook.signedPDFPath}`);
-            // Check if it's a URL (Cloudinary)
+            // Check if it's a URL
             if (logbook.signedPDFPath.startsWith('http')) {
-                console.log("[DEBUG] Redirecting to Cloudinary PDF:", logbook.signedPDFPath);
+                let downloadUrl = logbook.signedPDFPath;
 
-                // --- REDIRECT STRATEGY: Generate Signed URL and Redirect ---
-                // This avoids 502 errors by offloading the download to Cloudinary directly.
+                // If it's Cloudinary, try to generate a signed URL for private assets
+                if (logbook.signedPDFPath.includes('cloudinary.com')) {
+                    try {
+                        const parts = logbook.signedPDFPath.split('/upload/');
+                        if (parts.length === 2) {
+                            const versionAndId = parts[1];
+                            const pathParts = versionAndId.split('/');
+                            if (pathParts[0].startsWith('v')) pathParts.shift(); // remove version
+                            const publicIdWithExt = pathParts.join('/');
+
+                            const cloudinary = require('../config/cloudinary').cloudinary;
+                            downloadUrl = cloudinary.url(publicIdWithExt, {
+                                resource_type: 'raw', // Mostly PDFs are raw in this project
+                                sign_url: true,
+                                secure: true,
+                                expires_at: Math.floor(Date.now() / 1000) + 3600
+                            });
+                            console.log("[DEBUG] Generated signed Cloudinary URL");
+                        }
+                    } catch (urlErr) {
+                        console.warn("[DEBUG] Could not re-sign Cloudinary URL, using original:", logbook.signedPDFPath);
+                    }
+                }
+
+                console.log(`[DEBUG] Proxying fetch to: ${downloadUrl}`);
 
                 try {
-                    let downloadUrl = logbook.signedPDFPath;
+                    const response = await axios({
+                        method: 'get',
+                        url: downloadUrl,
+                        responseType: 'stream',
+                        timeout: 10000 // 10s timeout
+                    });
 
-                    // Attempt to generate a signed URL if possible (for security/access)
-                    // If the stored path is already a full URL, we might need to extract public ID to re-sign it properly
-                    // OR if it's already a public URL, we can just redirect.
-                    // Given the 502 history, we'll try to generate a fresh signed URL to be safe/robust.
-
-                    const parts = logbook.signedPDFPath.split('/upload/');
-                    if (parts.length === 2) {
-                        const versionAndId = parts[1];
-                        const pathParts = versionAndId.split('/');
-                        if (pathParts[0].startsWith('v')) pathParts.shift(); // remove version
-                        const publicIdWithExt = pathParts.join('/');
-
-                        const cloudinary = require('../config/cloudinary').cloudinary;
-
-                        // Generate Signed URL - Valid for 1 hour
-                        // Note: We use 'raw' as resource_type because that's what we uploaded as.
-                        downloadUrl = cloudinary.url(publicIdWithExt, {
-                            resource_type: 'raw',
-                            sign_url: true,
-                            secure: true,
-                            expires_at: Math.floor(Date.now() / 1000) + 3600 // 1 hour
-                        });
-                        console.log("[DEBUG] Generated signed redirect URL");
-                    }
-
-                    // Perform Proxy Fetch to avoid CORS issues and header leakage to Cloudinary
-                    console.log("[DEBUG] Proxying Cloudinary PDF through backend...");
-
-                    try {
-                        const cloudinaryRes = await axios({
-                            method: 'get',
-                            url: downloadUrl,
-                            responseType: 'stream'
-                        });
-
+                    // Pass along important headers from the source if they exist
+                    if (response.headers['content-type']) {
+                        res.setHeader('Content-Type', response.headers['content-type']);
+                    } else {
                         res.setHeader('Content-Type', 'application/pdf');
-                        res.setHeader('Content-Disposition', `inline; filename="Signed_Logbook_${logbook.month}_${logbook.year}.pdf"`);
-
-                        return cloudinaryRes.data.pipe(res);
-                    } catch (proxyError) {
-                        console.error("[DEBUG] Proxy fetch failed, falling back to redirect", proxyError.message);
-                        return res.redirect(logbook.signedPDFPath);
                     }
-                } catch (redirectError) {
-                    console.error("[DEBUG] Redirect generation failed, falling back to direct link", redirectError);
+
+                    res.setHeader('Content-Disposition', `inline; filename="Signed_Logbook_${logbook.month}_${logbook.year}.pdf"`);
+
+                    return response.data.pipe(res);
+                } catch (proxyError) {
+                    console.error("[DEBUG] Proxy fetch failed:", proxyError.message);
+                    if (proxyError.response) {
+                        console.error("[DEBUG] Cloudinary responded with status:", proxyError.response.status);
+                    }
+                    // Fallback to direct redirect only as a last resort (might hit CORS)
                     return res.redirect(logbook.signedPDFPath);
                 }
             } else {
@@ -544,28 +546,35 @@ exports.getConsolidatedLogbook = async (req, res) => {
         }).sort({ year: 1, month: 1 });
 
         if (logbooks.length === 0) {
+            console.warn(`[DEBUG] No signed logbooks found for student ${studentId} during consolidation.`);
             return res.status(404).json({ message: "No signed logbooks found to consolidate." });
         }
 
         // 2. Prepare paths for merging
         const pdfPaths = logbooks.map(l => l.signedPDFPath);
-        console.log(`[DEBUG] Attempting to merge ${pdfPaths.length} PDFs for student: ${studentId}`);
+        console.log(`[DEBUG] Attempting to merge ${pdfPaths.length} PDFs for student: ${studentId}. Paths:`, pdfPaths);
 
         // 3. Define temp output path
         const tempDir = path.join(__dirname, '..', 'uploads', 'temp');
-        if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir, { recursive: true });
+        if (!fs.existsSync(tempDir)) {
+            console.log("[DEBUG] Creating temp directory for consolidation:", tempDir);
+            fs.mkdirSync(tempDir, { recursive: true });
+        }
 
         const fileName = `Consolidated_Logbook_${studentProfile?.cb_number || 'Student'}_${Date.now()}.pdf`;
         const outputPath = path.join(tempDir, fileName);
 
         // 4. Merge
+        console.log("[DEBUG] Calling mergePDFs utility...");
         const success = await mergePDFs(pdfPaths, outputPath);
 
         if (!success) {
+            console.error("[DEBUG] mergePDFs returned false for student:", studentId);
             return res.status(500).json({ message: "Failed to merge logbook PDFs." });
         }
 
         // 5. Send file and cleanup
+        console.log("[DEBUG] Merge successful, sending file:", outputPath);
         res.setHeader('Content-Type', 'application/pdf');
         res.setHeader('Content-Disposition', `inline; filename="Consolidated_Logbook.pdf"`);
 
