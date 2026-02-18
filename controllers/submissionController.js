@@ -202,7 +202,7 @@ exports.getAllSubmissions = async (req, res) => {
                 finalConsolidatedLogbookUrl: student?.finalConsolidatedLogbookUrl || null,
                 month: item.month ? `${MONTH_NAMES[item.month - 1]} ${item.year}` : undefined,
                 logbookId: type === 'Logbook' ? item._id : undefined,
-                studentId: user?._id || user, // Include user ID for history fetching
+                studentId: user?._id?.toString() || user?.toString(), // Include user ID for history fetching
                 // Additional fields for Placement Details
                 placement: type === 'Placements' ? {
                     company_name: item.company_name,
