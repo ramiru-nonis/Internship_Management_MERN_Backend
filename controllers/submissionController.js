@@ -136,9 +136,19 @@ exports.getAllSubmissions = async (req, res) => {
 
         const PlacementForm = require('../models/PlacementForm');
 
-        const logbooks = await Logbook.find({ status: { $ne: 'Draft' } })
+        const allLogbooks = await Logbook.find({ status: { $ne: 'Draft' } })
             .populate('studentId')
             .sort({ submittedDate: -1, createdAt: -1 });
+
+        // Group logbooks by studentId to avoid multiple rows per student
+        const logbookMap = new Map();
+        allLogbooks.forEach(lb => {
+            const sid = lb.studentId?._id?.toString() || lb.studentId?.toString();
+            if (sid && !logbookMap.has(sid)) {
+                logbookMap.set(sid, lb);
+            }
+        });
+        const logbooks = Array.from(logbookMap.values());
         // Fetch ALL submissions
         const allMarksheets = await Marksheet.find().populate('studentId').sort({ createdAt: -1 });
         const allPresentations = await Presentation.find().populate('studentId').sort({ createdAt: -1 });
@@ -184,11 +194,12 @@ exports.getAllSubmissions = async (req, res) => {
                 name: student ? `${student.first_name} ${student.last_name}` : (user?.username || "Unknown Student"),
                 cbNumber: student?.cb_number || "N/A",
                 profilePicture: student?.profile_picture || null,
-                status: item.status || 'Submitted',
+                status: (type === 'Logbook' && student?.status === 'Completed') ? 'Completed' : (item.status || 'Submitted'),
                 date: item.submittedDate || item.createdAt || item.updatedAt, // Fallback to createdAt/updatedAt
                 scheduledDate: item.scheduledDate || null,
                 meetLink: item.meetLink || null,
                 fileUrl: item.fileUrl,
+                finalConsolidatedLogbookUrl: student?.finalConsolidatedLogbookUrl || null,
                 month: item.month ? `${MONTH_NAMES[item.month - 1]} ${item.year}` : undefined,
                 logbookId: type === 'Logbook' ? item._id : undefined,
                 studentId: user?._id || user, // Include user ID for history fetching
