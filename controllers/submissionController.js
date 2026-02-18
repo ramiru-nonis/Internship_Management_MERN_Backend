@@ -287,7 +287,7 @@ exports.notifySubmission = async (req, res) => {
                     const uploadResult = await cloudinary.uploader.upload(tempPath, {
                         folder: 'mern-internship-portal/final-logbooks',
                         resource_type: 'raw',
-                        public_id: `Final_Logbook_${student.cb_number}_${Date.now()}`
+                        public_id: `Final_Logbook_${student.cb_number}_${Date.now()}.pdf`
                     });
 
                     student.finalConsolidatedLogbookUrl = uploadResult.secure_url;
@@ -693,40 +693,101 @@ exports.viewCV = async (req, res) => {
         res.status(500).json({ message: "Error serving file" });
     }
 };
-// Proxy/View Consolidated Logbook (Forces Inline)
 exports.viewConsolidatedLogbook = async (req, res) => {
     try {
         const { studentId } = req.params;
         const Student = require('../models/Student');
         const axios = require('axios');
 
-        const student = await Student.findOne({ user: studentId });
-        if (!student || !student.finalConsolidatedLogbookUrl) {
-            return res.status(404).json({ message: "Consolidated logbook not found" });
+        console.log(`[DEBUG] viewConsolidatedLogbook request for studentId: ${studentId}`);
+
+        // Try searching by user ID first
+        let student = await Student.findOne({ user: studentId });
+
+        // Robustness: If not found, try searching by profile ID
+        if (!student) {
+            console.log(`[DEBUG] Student not found by user ID, trying by profile ID: ${studentId}`);
+            student = await Student.findById(studentId);
+        }
+
+        if (!student) {
+            console.error(`[DEBUG] Student record not found for ID: ${studentId}`);
+            return res.status(404).json({ message: "Student record not found" });
+        }
+
+        if (!student.finalConsolidatedLogbookUrl) {
+            console.log(`[DEBUG] Stored URL missing, attempting on-the-fly generation for student: ${student.cb_number}`);
+
+            // On-the-fly logic (similar to getConsolidatedLogbook in logbookController)
+            const Logbook = require('../models/Logbook');
+            const { mergePDFs } = require('../utils/pdfUtils');
+            const fs = require('fs');
+            const path = require('path');
+
+            const logbooks = await Logbook.find({
+                studentId: student.user,
+                status: 'Approved',
+                signedPDFPath: { $exists: true, $ne: "" }
+            }).sort({ year: 1, month: 1 });
+
+            if (logbooks.length === 0) {
+                console.error(`[DEBUG] No signed logbooks found for student: ${studentId}`);
+                return res.status(404).json({ message: "No approved logbooks found to consolidate. Final PDF not generated yet." });
+            }
+
+            const pdfPaths = logbooks.map(l => l.signedPDFPath);
+            const tempDir = path.join(__dirname, '..', 'uploads', 'temp');
+            if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir, { recursive: true });
+
+            const fileName = `Consolidated_Logbook_${student.cb_number}_${Date.now()}.pdf`;
+            const outputPath = path.join(tempDir, fileName);
+
+            const success = await mergePDFs(pdfPaths, outputPath);
+            if (!success) {
+                return res.status(500).json({ message: "Failed to merge logbook PDFs on-the-fly." });
+            }
+
+            res.setHeader('Content-Type', 'application/pdf');
+            res.setHeader('Content-Disposition', `inline; filename="Consolidated_Logbook_${student.cb_number}.pdf"`);
+
+            return res.sendFile(outputPath, (err) => {
+                if (!err) {
+                    // Cleanup temp file
+                    fs.unlink(outputPath, (unlinkErr) => {
+                        if (unlinkErr) console.error("[DEBUG] Error deleting temp PDF:", unlinkErr);
+                    });
+                }
+            });
         }
 
         const fileUrl = student.finalConsolidatedLogbookUrl;
+        console.log(`[DEBUG] Serving consolidated logbook from: ${fileUrl}`);
 
         if (fileUrl.startsWith('http')) {
             try {
+                console.log(`[DEBUG] Fetching from Cloudinary: ${fileUrl}`);
                 const response = await axios({
                     method: 'get',
                     url: fileUrl,
-                    responseType: 'stream'
+                    responseType: 'stream',
+                    timeout: 15000
                 });
+
+                console.log(`[DEBUG] Cloudinary fetch status: ${response.status}`);
                 res.setHeader('Content-Type', 'application/pdf');
                 res.setHeader('Content-Disposition', `inline; filename="Consolidated_Logbook_${student.cb_number}.pdf"`);
                 response.data.pipe(res);
             } catch (proxyError) {
-                console.error("Proxy error:", proxyError.message);
+                console.error("[DEBUG] Proxy fetch error:", proxyError.message);
+                // Last ditch: redirect
                 return res.redirect(fileUrl);
             }
         } else {
-            // Local fallback (if any)
+            console.error("[DEBUG] Local consolidated files not supported directly via this proxy");
             return res.status(400).json({ message: "Local consolidated files not supported directly via this proxy" });
         }
     } catch (error) {
-        console.error("Error serving consolidated logbook:", error);
-        res.status(500).json({ message: "Error serving file" });
+        console.error("[DEBUG] Error serving consolidated logbook:", error);
+        res.status(500).json({ message: "Error serving file", error: error.message });
     }
 };
