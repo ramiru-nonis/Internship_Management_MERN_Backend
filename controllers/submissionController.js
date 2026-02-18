@@ -388,7 +388,6 @@ exports.getStudentSubmissions = async (req, res) => {
             marksheetCount: marksheetCount,
             presentation: presentation || null,
             presentationCount: presentationCount,
-            finalConsolidatedLogbookUrl: studentProfile?.finalConsolidatedLogbookUrl || null,
             logbookStatus: {
                 complete: isLogbookComplete,
                 total: expectedTotal, // Send EXPECTED total to frontend

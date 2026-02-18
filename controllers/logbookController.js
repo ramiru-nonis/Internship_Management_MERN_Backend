@@ -395,7 +395,7 @@ exports.getHistory = async (req, res) => {
         const { studentId } = req.params;
         // Fetch all logbooks for this student that are NOT drafts? Or all? User said "logbook table record for that month should be saved in a separate page called logbook history... along with submitted date... pending by default".
         // This implies only submitted ones.
-        const logbooks = await Logbook.find({ studentId }).sort({ year: 1, month: 1 });
+        const logbooks = await Logbook.find({ studentId }).populate('studentId').sort({ year: 1, month: 1 });
         res.status(200).json(logbooks);
     } catch (error) {
         res.status(500).json({ message: 'Error fetching history', error: error.message });
