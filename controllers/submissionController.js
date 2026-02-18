@@ -693,4 +693,40 @@ exports.viewCV = async (req, res) => {
         res.status(500).json({ message: "Error serving file" });
     }
 };
+// Proxy/View Consolidated Logbook (Forces Inline)
+exports.viewConsolidatedLogbook = async (req, res) => {
+    try {
+        const { studentId } = req.params;
+        const Student = require('../models/Student');
+        const axios = require('axios');
 
+        const student = await Student.findOne({ user: studentId });
+        if (!student || !student.finalConsolidatedLogbookUrl) {
+            return res.status(404).json({ message: "Consolidated logbook not found" });
+        }
+
+        const fileUrl = student.finalConsolidatedLogbookUrl;
+
+        if (fileUrl.startsWith('http')) {
+            try {
+                const response = await axios({
+                    method: 'get',
+                    url: fileUrl,
+                    responseType: 'stream'
+                });
+                res.setHeader('Content-Type', 'application/pdf');
+                res.setHeader('Content-Disposition', `inline; filename="Consolidated_Logbook_${student.cb_number}.pdf"`);
+                response.data.pipe(res);
+            } catch (proxyError) {
+                console.error("Proxy error:", proxyError.message);
+                return res.redirect(fileUrl);
+            }
+        } else {
+            // Local fallback (if any)
+            return res.status(400).json({ message: "Local consolidated files not supported directly via this proxy" });
+        }
+    } catch (error) {
+        console.error("Error serving consolidated logbook:", error);
+        res.status(500).json({ message: "Error serving file" });
+    }
+};

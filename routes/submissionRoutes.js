@@ -52,5 +52,6 @@ router.get('/student/:studentId', submissionController.getStudentSubmissions);
 router.get('/marksheets/:id/view', submissionController.viewMarksheet);
 router.get('/presentations/:id/view', submissionController.viewPresentation);
 router.get('/cv/:studentId/view', submissionController.viewCV);
+router.get('/student/:studentId/consolidated-logbook', submissionController.viewConsolidatedLogbook);
 
 module.exports = router;
