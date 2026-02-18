@@ -700,12 +700,27 @@ exports.viewConsolidatedLogbook = async (req, res) => {
         const Student = require('../models/Student');
         const axios = require('axios');
 
-        const student = await Student.findOne({ user: studentId });
-        if (!student || !student.finalConsolidatedLogbookUrl) {
-            return res.status(404).json({ message: "Consolidated logbook not found" });
+        console.log(`[DEBUG] Attempting to serve consolidated logbook for ID: ${studentId}`);
+
+        // Try finding by User ID first, then fallback to Student ID
+        let student = await Student.findOne({ user: studentId });
+        if (!student) {
+            console.log(`[DEBUG] Student not found by user ID ${studentId}, trying by student _id...`);
+            student = await Student.findById(studentId);
+        }
+
+        if (!student) {
+            console.error(`[DEBUG] Student not found for ID: ${studentId}`);
+            return res.status(404).json({ message: "Student record not found" });
+        }
+
+        if (!student.finalConsolidatedLogbookUrl) {
+            console.error(`[DEBUG] Student ${student.cb_number} has no consolidated logbook URL saved.`);
+            return res.status(404).json({ message: "Consolidated logbook URL not found in student profile" });
         }
 
         const fileUrl = student.finalConsolidatedLogbookUrl;
+        console.log(`[DEBUG] Serving PDF from Cloudinary URL: ${fileUrl}`);
 
         if (fileUrl.startsWith('http')) {
             try {
