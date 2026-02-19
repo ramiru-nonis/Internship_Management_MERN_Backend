@@ -23,6 +23,9 @@ const { protect, coordinator } = require('../middleware/authMiddleware');
 router.use(protect);
 router.use(coordinator);
 
+const { generateStudentReport } = require('../controllers/reportController');
+router.get('/students/:id/report-pdf', generateStudentReport);
+
 router.get('/dashboard', getDashboardStats);
 router.get('/students', getAllStudents);
 router.put('/students/:id/status', updateStudentStatus);
