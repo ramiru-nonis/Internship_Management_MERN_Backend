@@ -709,14 +709,13 @@ exports.viewConsolidatedLogbook = async (req, res) => {
 
         if (fileUrl.startsWith('http')) {
             try {
-                const { download } = req.query;
                 const response = await axios({
                     method: 'get',
                     url: fileUrl,
                     responseType: 'stream'
                 });
                 res.setHeader('Content-Type', 'application/pdf');
-                res.setHeader('Content-Disposition', `${download === 'true' ? 'attachment' : 'inline'}; filename="Consolidated_Logbook_${student.cb_number}.pdf"`);
+                res.setHeader('Content-Disposition', `inline; filename="Consolidated_Logbook_${student.cb_number}.pdf"`);
                 response.data.pipe(res);
             } catch (proxyError) {
                 console.error("Proxy error:", proxyError.message);
