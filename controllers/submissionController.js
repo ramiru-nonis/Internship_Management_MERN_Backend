@@ -320,6 +320,7 @@ exports.notifySubmission = async (req, res) => {
         // 5. Update Student Status to 'Completed'
         student.status = 'Completed';
         await student.save();
+        console.log(`[DEBUG] Student ${studentId} status updated to Completed. Final logbook URL: ${student.finalConsolidatedLogbookUrl}`);
 
         res.status(200).json({
             message: 'Coordinator notified, consolidated logbook generated, and status updated to Completed.',
