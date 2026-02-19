@@ -16,4 +16,8 @@ router.post('/verify/:id', logbookController.handleMentorActionLink);
 router.get('/consolidated/:studentId', logbookController.getConsolidatedLogbook);
 router.post('/upload-signed/:id', upload.single('signed_logbook'), logbookController.uploadSignedLogbook);
 
+// New: Student Report via Logbook ID (for Mentors)
+const { generateStudentReportForLogbook } = require('../controllers/reportController');
+router.get('/:id/student-report', generateStudentReportForLogbook);
+
 module.exports = router;
