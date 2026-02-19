@@ -530,33 +530,78 @@ exports.downloadLogbookPDF = async (req, res) => {
 exports.getConsolidatedLogbook = async (req, res) => {
     try {
         const { studentId } = req.params;
+        const { createLogbookPDF } = require('../utils/logbookTemplate');
+
         const student = await User.findById(studentId);
         if (!student) return res.status(404).json({ message: "Student not found" });
 
         const studentProfile = await Student.findOne({ user: studentId });
 
-        // 1. Find all approved logbooks with signed PDFs
+        // 1. Find all approved logbooks
         const logbooks = await Logbook.find({
             studentId: studentId,
-            status: 'Approved',
-            signedPDFPath: { $exists: true, $ne: "" }
+            status: 'Approved'
         }).sort({ year: 1, month: 1 });
 
         if (logbooks.length === 0) {
-            console.warn(`[DEBUG] No signed logbooks found for student ${studentId} during consolidation.`);
-            return res.status(404).json({ message: "No signed logbooks found to consolidate." });
+            console.warn(`[DEBUG] No approved logbooks found for student ${studentId} during consolidation.`);
+            return res.status(404).json({ message: "No approved logbooks found to consolidate." });
         }
 
         // 2. Prepare paths for merging
-        const pdfPaths = logbooks.map(l => l.signedPDFPath);
-        console.log(`[DEBUG] Attempting to merge ${pdfPaths.length} PDFs for student: ${studentId}. Paths:`, pdfPaths);
-
-        // 3. Define temp output path
+        const pdfPaths = [];
+        const tempGeneratedFiles = [];
         const tempDir = path.join(__dirname, '..', 'uploads', 'temp');
         if (!fs.existsSync(tempDir)) {
-            console.log("[DEBUG] Creating temp directory for consolidation:", tempDir);
             fs.mkdirSync(tempDir, { recursive: true });
         }
+
+        for (const lb of logbooks) {
+            let useGenerated = false;
+
+            if (lb.signedPDFPath && lb.signedPDFPath !== "") {
+                // Check if file actually exists (if local)
+                if (!lb.signedPDFPath.startsWith('http')) {
+                    const fullPath = path.isAbsolute(lb.signedPDFPath)
+                        ? lb.signedPDFPath
+                        : path.join(__dirname, '..', lb.signedPDFPath);
+
+                    if (fs.existsSync(fullPath)) {
+                        pdfPaths.push(lb.signedPDFPath);
+                    } else {
+                        console.warn(`[DEBUG] Signed PDF record exists but file missing: ${lb.signedPDFPath}. Generating fallback.`);
+                        useGenerated = true;
+                    }
+                } else {
+                    // Remote URL, assume valid for now (mergePDFs handles fetch errors, but we might want to fallback if fetch fails? complex.)
+                    // For now, trust the URL.
+                    pdfPaths.push(lb.signedPDFPath);
+                }
+            } else {
+                useGenerated = true;
+            }
+
+            if (useGenerated) {
+                const tempName = `Temp_Gen_${lb._id}_${Date.now()}.pdf`;
+                const tempPath = path.join(tempDir, tempName);
+                console.log(`[DEBUG] Generating fallback PDF for logbook ${lb._id} at ${tempPath}`);
+
+                try {
+                    await createLogbookPDF(lb, studentProfile, tempPath);
+                    pdfPaths.push(tempPath);
+                    tempGeneratedFiles.push(tempPath);
+                } catch (genErr) {
+                    console.error(`[DEBUG] Failed to generate fallback PDF for logbook ${lb._id}:`, genErr);
+                    // Skip correctly
+                }
+            }
+        }
+
+        if (pdfPaths.length === 0) {
+            return res.status(404).json({ message: "No valid PDF content found to consolidate." });
+        }
+
+        console.log(`[DEBUG] Attempting to merge ${pdfPaths.length} PDFs for student: ${studentId}. Paths:`, pdfPaths);
 
         const fileName = `Consolidated_Logbook_${studentProfile?.cb_number || 'Student'}_${Date.now()}.pdf`;
         const outputPath = path.join(tempDir, fileName);
@@ -579,9 +624,15 @@ exports.getConsolidatedLogbook = async (req, res) => {
             if (err) {
                 console.error("[DEBUG] Error sending consolidated PDF:", err);
             }
-            // Cleanup temp file after sending
+            // Cleanup: Consolidated file AND any temp generated files
             fs.unlink(outputPath, (unlinkErr) => {
-                if (unlinkErr) console.error("[DEBUG] Error deleting temp PDF:", unlinkErr);
+                if (unlinkErr) console.error("[DEBUG] Error deleting consolidated PDF:", unlinkErr);
+            });
+
+            tempGeneratedFiles.forEach(tempFile => {
+                fs.unlink(tempFile, (unlinkErr) => {
+                    if (unlinkErr && unlinkErr.code !== 'ENOENT') console.error(`[DEBUG] Error deleting temp file ${tempFile}:`, unlinkErr);
+                });
             });
         });
 

@@ -1,11 +1,8 @@
 const PDFDocument = require('pdfkit');
+const fs = require('fs');
 
-const generateLogbookPDF = (logbook, studentData, res) => {
-    const doc = new PDFDocument({ margin: 50 });
-
-    // Pipe PDF to response
-    doc.pipe(res);
-
+// Internal function to populate the doc
+const populateLogbookDoc = (doc, logbook, studentData) => {
     // Header
     doc.fontSize(20).text('Monthly Internship Logbook', { align: 'center' });
     doc.moveDown();
@@ -119,8 +116,31 @@ const generateLogbookPDF = (logbook, studentData, res) => {
 
     doc.moveDown(3);
     doc.fontSize(8).fillColor('grey').text(`Generated on ${new Date().toLocaleString()}`, { align: 'right' });
+};
 
+const generateLogbookPDF = (logbook, studentData, res) => {
+    const doc = new PDFDocument({ margin: 50 });
+    doc.pipe(res);
+    populateLogbookDoc(doc, logbook, studentData);
     doc.end();
 };
 
-module.exports = { generateLogbookPDF };
+const createLogbookPDF = (logbook, studentData, outputPath) => {
+    return new Promise((resolve, reject) => {
+        try {
+            const doc = new PDFDocument({ margin: 50 });
+            const stream = fs.createWriteStream(outputPath);
+
+            doc.pipe(stream);
+            populateLogbookDoc(doc, logbook, studentData);
+            doc.end();
+
+            stream.on('finish', () => resolve(outputPath));
+            stream.on('error', reject);
+        } catch (error) {
+            reject(error);
+        }
+    });
+};
+
+module.exports = { generateLogbookPDF, createLogbookPDF };
